@@ -44,6 +44,10 @@ class AdultDataPreprocessor:
         encoding: 'label' or 'onehot'
         scale: True/False (applies StandardScaler to numerical columns)
         """
+        # Create copies to avoid modifying original data
+        df_train = df_train.copy()
+        df_test = df_test.copy()
+        
         cat_missing_cols = ['workclass', 'occupation', 'native-country']
         # Replace '?' with NaN and trim whitespace
         for df in [df_train, df_test]:
@@ -59,16 +63,22 @@ class AdultDataPreprocessor:
             for col in cat_missing_cols:
                 df_train[col] = df_train[col].fillna('Unknown')
                 df_test[col] = df_test[col].fillna('Unknown')
+        
         # Identify categorical columns (excluding target)
         categorical_cols = [col for col in df_train.columns if df_train[col].dtype == 'object' and col != 'income']
-        # Encode target
-        le_income = LabelEncoder().fit(df_train['income'])
+        
+        # Encode target - fit on combined unique values
+        all_income_values = list(set(df_train['income'].unique()) | set(df_test['income'].unique()))
+        le_income = LabelEncoder().fit(all_income_values)
         df_train['income'] = le_income.transform(df_train['income'])
         df_test['income'] = le_income.transform(df_test['income'])
+        
         # Encode features
         if encoding == 'label':
             for col in categorical_cols:
-                le = LabelEncoder().fit(df_train[col])
+                # Combine all unique values from both train and test
+                all_values = list(set(df_train[col].unique()) | set(df_test[col].unique()))
+                le = LabelEncoder().fit(all_values)
                 df_train[col] = le.transform(df_train[col])
                 df_test[col] = le.transform(df_test[col])
         elif encoding == 'onehot':
@@ -77,7 +87,7 @@ class AdultDataPreprocessor:
             df_test = df_test.reindex(columns=df_train.columns, fill_value=0)
         # Feature scaling
         if scale:
-            numerical_cols = [col for col in df_train.columns if df_train[col] .dtype in ['int64', 'float64'] and col != 'income']
+            numerical_cols = [col for col in df_train.columns if df_train[col].dtype in ['int64', 'float64'] and col != 'income']
             scaler = StandardScaler()
             df_train[numerical_cols] = scaler.fit_transform(df_train[numerical_cols])
             df_test[numerical_cols] = scaler.transform(df_test[numerical_cols])
