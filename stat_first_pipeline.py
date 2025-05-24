@@ -1,11 +1,12 @@
 import pandas as pd
 import numpy as np
 from collections import defaultdict
-##import matplotlib.pyplot as plt
-from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 import warnings
 warnings.filterwarnings('ignore')
+
+# Import the preprocessing class
+from data_preprocessor import AdultDataPreprocessor
 
 class PrivBayesDP:
     def __init__(self, epsilon=1.0, delta=1e-5):
@@ -228,64 +229,6 @@ class PrivBayesDP:
         return self.epsilon, self.delta
 
 
-def load_and_preprocess_adult_data(file_path=None):
-    """
-    Load and preprocess the Adult dataset
-    This function should be adapted based on your existing preprocessing
-    """
-    # Column names for Adult dataset
-    columns = ["age", "workclass", "fnlwgt", "education", "education-num",
-               "marital-status", "occupation", "relationship", "race", "sex",
-               "capital-gain", "capital-loss", "hours-per-week", "native-country", "income"]
-    
-    try:
-        # Try to load from file if provided
-        if file_path:
-            adult_df = pd.read_csv(file_path, names=columns, na_values="?", skipinitialspace=True)
-        else:
-            # For demonstration, create a small sample dataset
-            print("Creating sample dataset for demonstration...")
-            np.random.seed(42)
-            n_samples = 1000
-            
-            adult_df = pd.DataFrame({
-                'age': np.random.randint(18, 80, n_samples),
-                'workclass': np.random.choice(['Private', 'Self-emp', 'Gov', 'Never-worked'], n_samples),
-                'education': np.random.choice(['Bachelors', 'HS-grad', 'Masters', 'Some-college'], n_samples),
-                'marital-status': np.random.choice(['Married', 'Single', 'Divorced'], n_samples),
-                'occupation': np.random.choice(['Tech-support', 'Sales', 'Other-service', 'Prof-specialty'], n_samples),
-                'relationship': np.random.choice(['Husband', 'Wife', 'Own-child', 'Not-in-family'], n_samples),
-                'race': np.random.choice(['White', 'Black', 'Asian-Pac-Islander', 'Other'], n_samples),
-                'sex': np.random.choice(['Male', 'Female'], n_samples),
-                'hours-per-week': np.random.randint(20, 80, n_samples),
-                'income': np.random.choice(['<=50K', '>50K'], n_samples)
-            })
-    except Exception as e:
-        print(f"Error loading data: {e}")
-        return None, None, None
-    
-    # Drop missing values
-    adult_df = adult_df.dropna()
-    
-    # Convert income to binary
-    adult_df['income'] = adult_df['income'].apply(lambda x: 1 if '>50K' in str(x) else 0)
-    
-    # Identify categorical and continuous features
-    categorical_features = ['workclass', 'education', 'marital-status', 'occupation', 
-                           'relationship', 'race', 'sex']
-    continuous_features = ['age', 'hours-per-week']
-    
-    # Label encode categorical features
-    label_encoders = {}
-    for col in categorical_features:
-        if col in adult_df.columns:
-            le = LabelEncoder()
-            adult_df[col] = le.fit_transform(adult_df[col].astype(str))
-            label_encoders[col] = le
-    
-    return adult_df, categorical_features, continuous_features
-
-
 def evaluate_synthetic_data(real_data, synthetic_data, feature_subset=None):
     """
     Basic evaluation of synthetic data quality
@@ -327,61 +270,126 @@ def evaluate_synthetic_data(real_data, synthetic_data, feature_subset=None):
 
 def main():
     """
-    Main function to demonstrate the PrivBayes implementation
+    Main function to demonstrate the PrivBayes implementation using AdultDataPreprocessor
     """
-    print("=== WEEK 3: STAT-FIRST PIPELINE - PRIVBAYES ===")
+    print("=== WEEK 3: STAT-FIRST PIPELINE - PRIVBAYES with AdultDataPreprocessor ===")
     
-    # Load and preprocess data
-    print("\n1. Loading and preprocessing data...")
-    adult_df, categorical_features, continuous_features = load_and_preprocess_adult_data()
+    # Initialize the preprocessor
+    print("\n1. Initializing data preprocessor...")
+    preprocessor = AdultDataPreprocessor(data_dir='data')
     
-    if adult_df is None:
-        print("Failed to load data. Please check your data file.")
+    # Download data if not available
+    print("2. Downloading data if needed...")
+    try:
+        preprocessor.download()
+        print("Data download completed or files already exist")
+    except Exception as e:
+        print(f"Error downloading data: {e}")
         return
     
-    print(f"Dataset shape: {adult_df.shape}")
-    print(f"Categorical features: {categorical_features}")
-    print(f"Continuous features: {continuous_features}")
+    # Load the data
+    print("3. Loading data...")
+    try:
+        df_train_orig, df_test_orig = preprocessor.load()
+        print(f"Training data shape: {df_train_orig.shape}")
+        print(f"Test data shape: {df_test_orig.shape}")
+        print(f"Columns: {list(df_train_orig.columns)}")
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        return
     
-    # Split data for evaluation
-    train_data, test_data = train_test_split(adult_df, test_size=0.2, random_state=42)
-    print(f"Training data shape: {train_data.shape}")
-    print(f"Test data shape: {test_data.shape}")
+    # Combine and split data for our experiment
+    print("4. Combining and splitting data...")
+    try:
+        df_train, df_test = preprocessor.combine_and_split(
+            df_train_orig, df_test_orig, 
+            test_size=0.2, 
+            random_state=42
+        )
+        print(f"New training data shape: {df_train.shape}")
+        print(f"New test data shape: {df_test.shape}")
+    except Exception as e:
+        print(f"Error combining and splitting data: {e}")
+        return
     
-    # Initialize and fit PrivBayes model
-    print("\n2. Training PrivBayes model...")
+    # Preprocess the data
+    print("5. Preprocessing data...")
+    try:
+        df_train_proc, df_test_proc = preprocessor.preprocess(
+            df_train, df_test,
+            missing_strategy='fillna',  # Handle missing values by filling
+            encoding='label',           # Use label encoding
+            scale=False                 # Don't scale for PrivBayes (we'll discretize)
+        )
+        print(f"Processed training data shape: {df_train_proc.shape}")
+        print(f"Processed test data shape: {df_test_proc.shape}")
+        print("Preprocessing completed successfully!")
+    except Exception as e:
+        print(f"Error preprocessing data: {e}")
+        return
+    
+    # Identify continuous features that need discretization
+    # These are the numerical features from the Adult dataset
+    continuous_features = ['age', 'fnlwgt', 'education-num', 'capital-gain', 
+                          'capital-loss', 'hours-per-week']
+    
+    # Filter continuous features that actually exist in our processed data
+    existing_continuous = [col for col in continuous_features if col in df_train_proc.columns]
+    print(f"Continuous features to discretize: {existing_continuous}")
     
     # Test different privacy budgets
     privacy_budgets = [0.5, 1.0, 2.0]
     
     for epsilon in privacy_budgets:
-        print(f"\n--- Testing with ε = {epsilon} ---")
+        print(f"\n{'='*20} Testing with ε = {epsilon} {'='*20}")
         
         # Initialize PrivBayes
         privbayes = PrivBayesDP(epsilon=epsilon)
         
         # Fit the model
-        privbayes.fit(train_data, continuous_features=continuous_features)
+        print(f"\n6. Training PrivBayes model with ε = {epsilon}...")
+        try:
+            privbayes.fit(df_train_proc, continuous_features=existing_continuous)
+        except Exception as e:
+            print(f"Error fitting PrivBayes model: {e}")
+            continue
         
         # Generate synthetic data
-        print(f"\n3. Generating synthetic data...")
-        n_synthetic = len(train_data)
-        synthetic_data = privbayes.generate_samples(n_synthetic)
-        
-        print(f"Generated {len(synthetic_data)} synthetic samples")
-        print(f"Synthetic data shape: {synthetic_data.shape}")
+        print(f"\n7. Generating synthetic data...")
+        try:
+            n_synthetic = min(1000, len(df_train_proc))  # Generate up to 1000 samples
+            synthetic_data = privbayes.generate_samples(n_synthetic)
+            
+            print(f"Generated {len(synthetic_data)} synthetic samples")
+            print(f"Synthetic data shape: {synthetic_data.shape}")
+            print("Sample of synthetic data:")
+            print(synthetic_data.head())
+        except Exception as e:
+            print(f"Error generating synthetic data: {e}")
+            continue
         
         # Basic evaluation
-        print(f"\n4. Evaluating synthetic data quality...")
-        evaluate_synthetic_data(train_data, synthetic_data)
+        print(f"\n8. Evaluating synthetic data quality...")
+        try:
+            # Select a subset of features for evaluation
+            eval_features = df_train_proc.columns[:6]  # First 6 features
+            evaluate_synthetic_data(df_train_proc, synthetic_data, eval_features)
+        except Exception as e:
+            print(f"Error evaluating synthetic data: {e}")
         
         # Privacy cost
         eps_used, delta_used = privbayes.get_privacy_cost()
         print(f"\nPrivacy cost: ε = {eps_used}, δ = {delta_used}")
         
-        print("\n" + "="*60)
+        print("\n" + "="*80)
     
-    print("\nPrivBayes implementation completed!")
+    print("\nPrivBayes implementation with AdultDataPreprocessor completed!")
+    print("\nSummary:")
+    print(f"- Successfully loaded and preprocessed {len(df_train_proc)} training samples")
+    print(f"- Tested privacy budgets: {privacy_budgets}")
+    print(f"- Generated synthetic data with differential privacy guarantees")
+    print(f"- Used preprocessing pipeline from AdultDataPreprocessor")
+
 
 if __name__ == "__main__":
     main()
