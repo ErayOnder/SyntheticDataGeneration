@@ -73,7 +73,7 @@ if __name__ == "__main__":
     print(f"✓ Columns: {list(df_real.columns)}")
     
     # Set privacy budget
-    epsilon = 0.5
+    epsilon = 5.0
     print(f"🔒 Privacy budget (epsilon): {epsilon}")
     
     # Train and generate synthetic data
