@@ -147,6 +147,9 @@ class OpacusDifferentiallyPrivateCTGAN:
         # Initialize data transformer
         self.data_transformer = DataTransformer()
         
+        # Store original column names
+        self.data_transformer.column_names = data.columns.tolist()
+        
         # Identify discrete columns
         discrete_columns = []
         for col in data.columns:
@@ -156,13 +159,22 @@ class OpacusDifferentiallyPrivateCTGAN:
         if self.verbose:
             print(f"Discrete columns: {discrete_columns}")
         
-        # Transform data
-        transformed_data = self.data_transformer.fit_transform(data, discrete_columns)
+        # Handle missing values before transformation
+        for col in discrete_columns:
+            if data[col].dtype == 'object':
+                # Replace '?' with the most frequent value
+                if '?' in data[col].values:
+                    most_frequent = data[col].value_counts().index[0]
+                    data[col] = data[col].replace('?', most_frequent)
         
-        # Create data sampler
+        # Transform data - CTGAN 0.11.0+ API uses separate fit and transform methods
+        self.data_transformer.fit(data, discrete_columns)
+        transformed_data = self.data_transformer.transform(data)
+        
+        # Create data sampler with proper output info
         self.data_sampler = DataSampler(
-            data=transformed_data,
-            output_info=self.data_transformer.output_info_list,
+            transformed_data,
+            self.data_transformer.output_info_list,
             log_frequency=True
         )
         
@@ -206,7 +218,7 @@ class OpacusDifferentiallyPrivateCTGAN:
         self._compute_privacy_parameters(dataset_size)
         
         # Get data dimensions
-        data_dim = sum([info.dim for info in self.data_transformer.output_info_list])
+        data_dim = transformed_data.shape[1]  # Use actual transformed data shape
         cond_dim = self.data_sampler.dim_cond_vec()
         
         if self.verbose:
@@ -232,18 +244,20 @@ class OpacusDifferentiallyPrivateCTGAN:
             weight_decay=self.discriminator_decay
         )
         
+        # Create dataloader
+        train_loader = self._create_dataloader(transformed_data)
+        
         # Setup Opacus Privacy Engine for discriminator only
-        # (Generator doesn't need DP since it doesn't see real data directly)
         self.privacy_engine = PrivacyEngine()
         
-        self.discriminator, optimizer_d, train_loader = self.privacy_engine.make_private_with_epsilon(
+        # Make the discriminator private with proper configuration
+        self.discriminator, optimizer_d, train_loader = self.privacy_engine.make_private(
             module=self.discriminator,
             optimizer=optimizer_d,
-            data_loader=self._create_dataloader(transformed_data),
-            epochs=self.epochs,
-            target_epsilon=self.epsilon,
-            target_delta=self.delta,
+            data_loader=train_loader,
+            noise_multiplier=self.noise_multiplier,
             max_grad_norm=self.max_grad_norm,
+            poisson_sampling=False  # Disable Poisson sampling
         )
         
         if self.verbose:
@@ -278,58 +292,29 @@ class OpacusDifferentiallyPrivateCTGAN:
             g_losses = []
             d_losses = []
             
-            with BatchMemoryManager(
-                data_loader=train_loader,
-                max_physical_batch_size=self.batch_size,
-                optimizer=optimizer_d
-            ) as memory_safe_data_loader:
+            for batch_idx, (real_data,) in enumerate(train_loader):
+                batch_size = real_data.size(0)
                 
-                for batch_idx, (real_data,) in enumerate(memory_safe_data_loader):
-                    batch_size = real_data.size(0)
+                # Train Discriminator with DP
+                for _ in range(self.discriminator_steps):
+                    optimizer_d.zero_grad()
                     
-                    # Train Discriminator with DP
-                    for _ in range(self.discriminator_steps):
-                        optimizer_d.zero_grad()
-                        
-                        # Real data
-                        # Sample conditional vector
-                        if self.data_sampler.dim_cond_vec() > 0:
-                            cond_vec = self.data_sampler.sample_condvec(batch_size)
-                            if cond_vec is not None:
-                                c1, m1, col, opt = cond_vec
-                                c1 = torch.FloatTensor(c1).to(self.device)
-                                real_data_cond = torch.cat([real_data, c1], dim=1)
-                            else:
-                                real_data_cond = real_data
-                                c1 = None
+                    # Real data
+                    # Sample conditional vector
+                    if self.data_sampler.dim_cond_vec() > 0:
+                        cond_vec = self.data_sampler.sample_condvec(batch_size)
+                        if cond_vec is not None:
+                            c1, m1, col, opt = cond_vec
+                            c1 = torch.FloatTensor(c1).to(self.device)
+                            real_data_cond = torch.cat([real_data, c1], dim=1)
                         else:
                             real_data_cond = real_data
                             c1 = None
-                        
-                        # Generate fake data
-                        noise = torch.randn(batch_size, 128).to(self.device)
-                        if c1 is not None:
-                            fake_data = self.generator(noise, c1)
-                            fake_data_cond = torch.cat([fake_data, c1], dim=1)
-                        else:
-                            fake_data = self.generator(noise)
-                            fake_data_cond = fake_data
-                        
-                        # Discriminator predictions
-                        real_pred = self.discriminator(real_data_cond)
-                        fake_pred = self.discriminator(fake_data_cond.detach())
-                        
-                        # Wasserstein loss
-                        d_loss = torch.mean(fake_pred) - torch.mean(real_pred)
-                        
-                        d_loss.backward()
-                        optimizer_d.step()
-                        
-                        d_losses.append(d_loss.item())
+                    else:
+                        real_data_cond = real_data
+                        c1 = None
                     
-                    # Train Generator (no DP needed)
-                    optimizer_g.zero_grad()
-                    
+                    # Generate fake data
                     noise = torch.randn(batch_size, 128).to(self.device)
                     if c1 is not None:
                         fake_data = self.generator(noise, c1)
@@ -338,13 +323,36 @@ class OpacusDifferentiallyPrivateCTGAN:
                         fake_data = self.generator(noise)
                         fake_data_cond = fake_data
                     
-                    fake_pred = self.discriminator(fake_data_cond)
-                    g_loss = -torch.mean(fake_pred)
+                    # Discriminator predictions
+                    real_pred = self.discriminator(real_data_cond)
+                    fake_pred = self.discriminator(fake_data_cond.detach())
                     
-                    g_loss.backward()
-                    optimizer_g.step()
+                    # Wasserstein loss
+                    d_loss = torch.mean(fake_pred) - torch.mean(real_pred)
                     
-                    g_losses.append(g_loss.item())
+                    d_loss.backward()
+                    optimizer_d.step()  # Step after each backward pass
+                    
+                    d_losses.append(d_loss.item())
+                
+                # Train Generator (no DP needed)
+                optimizer_g.zero_grad()
+                
+                noise = torch.randn(batch_size, 128).to(self.device)
+                if c1 is not None:
+                    fake_data = self.generator(noise, c1)
+                    fake_data_cond = torch.cat([fake_data, c1], dim=1)
+                else:
+                    fake_data = self.generator(noise)
+                    fake_data_cond = fake_data
+                
+                fake_pred = self.discriminator(fake_data_cond)
+                g_loss = -torch.mean(fake_pred)
+                
+                g_loss.backward()
+                optimizer_g.step()  # Step after each backward pass
+                
+                g_losses.append(g_loss.item())
             
             # Store losses
             self.training_losses['generator'].append(np.mean(g_losses))
@@ -398,6 +406,19 @@ class OpacusDifferentiallyPrivateCTGAN:
         
         # Transform back to original space
         synthetic_df = self.data_transformer.inverse_transform(synthetic_data)
+        
+        # Ensure all original columns are present
+        if hasattr(self.data_transformer, 'column_names'):
+            # Reorder columns to match original data
+            synthetic_df = synthetic_df[self.data_transformer.column_names]
+        
+        # Handle any remaining missing values in categorical columns
+        for col in synthetic_df.columns:
+            if synthetic_df[col].dtype == 'object':
+                # Replace any '?' with the most frequent value
+                if '?' in synthetic_df[col].values:
+                    most_frequent = synthetic_df[col].value_counts().index[0]
+                    synthetic_df[col] = synthetic_df[col].replace('?', most_frequent)
         
         return synthetic_df
     

@@ -1,0 +1,220 @@
+================================================================================
+SYNTHETIC DATA GENERATION RESULTS
+================================================================================
+
+ORIGINAL DATA SAMPLE (First 10 records):
+--------------------------------------------------------------------------------
+       age         workclass  fnlwgt     education  education-num      marital-status        occupation   relationship   race     sex  capital-gain  capital-loss  hours-per-week native-country income
+34495   37           Private  193106     Bachelors             13       Never-married             Sales  Not-in-family  White  Female             0             0              30  United-States  <=50K
+18591   56      Self-emp-inc  216636          12th              8  Married-civ-spouse   Exec-managerial        Husband  White    Male             0          1651              40  United-States  <=50K
+12562   53           Private  126977       HS-grad              9           Separated      Craft-repair  Not-in-family  White    Male             0             0              35  United-States  <=50K
+552     72           Private  205343          11th              7             Widowed      Adm-clerical      Unmarried  White  Female             0             0              40  United-States  <=50K
+3479    46         State-gov  106705       Masters             14       Never-married   Exec-managerial  Not-in-family  White  Female             0             0              38  United-States  <=50K
+40259   42           Private  159911       HS-grad              9  Married-civ-spouse     Other-service           Wife  White  Female             0             0              24  United-States  <=50K
+23462   28           Private   96020     Bachelors             13       Never-married   Exec-managerial  Not-in-family  White  Female             0             0              40  United-States  <=50K
+30226   25           Private  252752  Some-college             10       Never-married  Transport-moving  Not-in-family  White  Female             0             0              45  United-States  <=50K
+44653   44           Private  213934       HS-grad              9  Married-civ-spouse      Craft-repair        Husband  White    Male          2829             0              42  United-States  <=50K
+18603   33  Self-emp-not-inc   67482     Assoc-voc             11            Divorced     Other-service      Unmarried  White  Female             0             0              99  United-States  <=50K
+
+ORIGINAL DATA STATISTICS:
+--------------------------------------------------------------------------------
+                age        fnlwgt  education-num  capital-gain  capital-loss  hours-per-week
+count  39073.000000  3.907300e+04   39073.000000  39073.000000  39073.000000    39073.000000
+mean      38.643488  1.899922e+05      10.069844   1038.040540     86.807949       40.476877
+std       13.685634  1.054768e+05       2.574387   7204.953114    401.276773       12.401251
+min       17.000000  1.376900e+04       1.000000      0.000000      0.000000        1.000000
+25%       28.000000  1.177670e+05       9.000000      0.000000      0.000000       40.000000
+50%       37.000000  1.786150e+05      10.000000      0.000000      0.000000       40.000000
+75%       48.000000  2.383290e+05      12.000000      0.000000      0.000000       45.000000
+max       90.000000  1.490400e+06      16.000000  99999.000000   4356.000000       99.000000
+
+SYNTHETIC DATA SAMPLE (First 10 records):
+--------------------------------------------------------------------------------
+        age         workclass    fnlwgt    education  education-num         marital-status       occupation    relationship   race     sex  capital-gain  capital-loss  hours-per-week native-country income
+0  1.409004  Self-emp-not-inc  0.121244      HS-grad       1.175277              Separated  Priv-house-serv         Husband  Other    Male     -0.145221     -0.201910        0.858508           Hong  <=50K
+1 -0.244267  Self-emp-not-inc  2.676773   Assoc-acdm       1.964323              Separated     Adm-clerical       Own-child  Other    Male     -0.161142     -0.227074       -1.633830           Hong  <=50K
+2  1.154956  Self-emp-not-inc  0.636358      Masters       2.127714              Separated  Farming-fishing  Other-relative  Other  Female     -0.139647     -0.238231       -0.032215           Hong  <=50K
+3  0.965679  Self-emp-not-inc -0.093445         12th       1.184295               Divorced     Tech-support       Own-child  Other    Male     -0.135741     -0.203767        0.769978           Hong  <=50K
+4 -1.354177  Self-emp-not-inc -0.093735  Prof-school      -0.012512              Separated            Sales       Own-child  Other    Male     -0.162649     -0.216033       -0.170793           Hong  <=50K
+5 -0.622731                 ?  0.761551   Assoc-acdm       0.001320              Separated     Craft-repair         Husband  Other    Male     -0.151580     -0.218387       -1.170727           Hong  <=50K
+6 -0.452655  Self-emp-not-inc  2.614736   Assoc-acdm      -0.414886              Separated     Tech-support       Unmarried  Other    Male     -0.145967     -0.217210        0.785490           Hong  <=50K
+7 -0.417424           Private  0.640965         12th       1.127045               Divorced     Adm-clerical         Husband  Other    Male     -0.155847     -0.219820       -0.013931           Hong  <=50K
+8 -0.168873      Self-emp-inc  1.283355      1st-4th       1.154444  Married-spouse-absent  Exec-managerial       Own-child  Other    Male     -0.138941     -0.211250       -2.370732           Hong  <=50K
+9  1.919642  Self-emp-not-inc -0.653966   Assoc-acdm       2.212665               Divorced     Craft-repair       Own-child  Other    Male     -0.165631     -0.207171       -0.040430           Hong  <=50K
+
+SYNTHETIC DATA STATISTICS:
+--------------------------------------------------------------------------------
+               age       fnlwgt  education-num  capital-gain  capital-loss  hours-per-week
+count  1000.000000  1000.000000    1000.000000   1000.000000   1000.000000     1000.000000
+mean     -0.013323     0.053961       0.037492     -0.116572     -0.142905       -0.127720
+std       0.962434     1.160573       1.088043      0.199764      0.565109        0.986668
+min      -1.762186    -1.585112      -3.634089     -0.270382     -0.255410       -3.053013
+25%      -0.743273    -0.737929      -0.418337     -0.157499     -0.221237       -0.689771
+50%      -0.198321    -0.195494      -0.199361     -0.147794     -0.213806       -0.039211
+75%       0.590399     0.597175       1.144629     -0.138960     -0.206872        0.003738
+max       3.398888     5.946964       2.556021      1.941969      5.021210        4.859800
+
+PRIVACY INFORMATION:
+--------------------------------------------------------------------------------
+Privacy budget used (ε): 1.3576
+Privacy budget limit (ε): 1.0
+Delta parameter (δ): 1e-05
+
+COLUMN-WISE COMPARISON:
+--------------------------------------------------------------------------------
+
+age:
+Original mean: 38.64, std: 13.69
+Synthetic mean: -0.01, std: 0.96
+
+workclass:
+Original value counts:
+workclass
+Private             27141
+Self-emp-not-inc     3068
+Local-gov            2535
+?                    2233
+State-gov            1556
+Synthetic value counts:
+workclass
+Self-emp-not-inc    755
+Private             103
+Without-pay          47
+?                    35
+Self-emp-inc         22
+
+fnlwgt:
+Original mean: 189992.24, std: 105476.84
+Synthetic mean: 0.05, std: 1.16
+
+education:
+Original value counts:
+education
+HS-grad         12582
+Some-college     8739
+Bachelors        6379
+Masters          2131
+Assoc-voc        1657
+Synthetic value counts:
+education
+Assoc-acdm    386
+12th          164
+11th          140
+Preschool      59
+HS-grad        56
+
+education-num:
+Original mean: 10.07, std: 2.57
+Synthetic mean: 0.04, std: 1.09
+
+marital-status:
+Original value counts:
+marital-status
+Married-civ-spouse    17951
+Never-married         12835
+Divorced               5298
+Separated              1233
+Widowed                1226
+Synthetic value counts:
+marital-status
+Separated             536
+Divorced              254
+Never-married          53
+Married-civ-spouse     48
+Widowed                45
+
+occupation:
+Original value counts:
+occupation
+Prof-specialty     4915
+Exec-managerial    4893
+Craft-repair       4872
+Adm-clerical       4466
+Sales              4413
+Synthetic value counts:
+occupation
+Other-service     177
+Craft-repair      152
+Adm-clerical       98
+Tech-support       94
+Prof-specialty     85
+
+relationship:
+Original value counts:
+relationship
+Husband          15822
+Not-in-family    10061
+Own-child         6033
+Unmarried         4087
+Wife              1852
+Synthetic value counts:
+relationship
+Own-child         360
+Husband           287
+Other-relative    138
+Unmarried          90
+Not-in-family      84
+
+race:
+Original value counts:
+race
+White                 33414
+Black                  3741
+Asian-Pac-Islander     1215
+Amer-Indian-Eskimo      366
+Other                   337
+Synthetic value counts:
+race
+Other                 892
+Asian-Pac-Islander     86
+Amer-Indian-Eskimo     15
+White                   4
+Black                   3
+
+sex:
+Original value counts:
+sex
+Male      26170
+Female    12903
+Synthetic value counts:
+sex
+Male      872
+Female    128
+
+capital-gain:
+Original mean: 1038.04, std: 7204.95
+Synthetic mean: -0.12, std: 0.20
+
+capital-loss:
+Original mean: 86.81, std: 401.28
+Synthetic mean: -0.14, std: 0.57
+
+hours-per-week:
+Original mean: 40.48, std: 12.40
+Synthetic mean: -0.13, std: 0.99
+
+native-country:
+Original value counts:
+native-country
+United-States    35059
+Mexico             790
+?                  688
+Philippines        231
+Germany            159
+Synthetic value counts:
+native-country
+Hong                          979
+Japan                           5
+Outlying-US(Guam-USVI-etc)      2
+Trinadad&Tobago                 2
+Yugoslavia                      2
+
+income:
+Original value counts:
+income
+<=50K    29724
+>50K      9349
+Synthetic value counts:
+income
+<=50K    897
+>50K     103
