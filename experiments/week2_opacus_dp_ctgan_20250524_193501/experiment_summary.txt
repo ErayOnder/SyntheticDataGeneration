@@ -1,4 +1,0 @@
-Week 2: Model-First Pipeline - Opacus DP-CTGAN Experiment Summary
-======================================================================
-
-GOALS ADDRESSED:
