@@ -973,7 +973,7 @@ class OpacusDifferentiallyPrivateCTGAN:
             print(f"Privacy spent: {self.privacy_spent:.3f}/{self.epsilon}")
     
     def __str__(self):
-        return (f"ImprovedOpacusDifferentiallyPrivateCTGAN("
+        return (f"OpacusDifferentiallyPrivateCTGAN("
                f"ε={self.epsilon}, δ={self.delta}, "
                f"epochs={self.epochs}, batch_size={self.batch_size}, "
                f"pac_size={self.pac_size}, tau={self.tau}, "
