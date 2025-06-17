@@ -219,6 +219,135 @@ class AdultDataPreprocessor:
         
         return df_processed
 
+    def preprocess_for_dpctgan(self, df):
+        """
+        Preprocess the Adult dataset specifically for DP-CTGAN synthesizer.
+        
+        This method prepares the data for DP-CTGAN by:
+        1. Handling missing values
+        2. Keeping numerical columns as numerical
+        3. Cleaning categorical columns
+        4. Identifying discrete columns for DP-CTGAN
+        
+        Args:
+            df (pd.DataFrame): Input DataFrame to preprocess
+            
+        Returns:
+            tuple: (processed_df, discrete_columns_list) where discrete_columns_list 
+                   contains names of categorical columns for DP-CTGAN
+        """
+        # Create a copy to avoid modifying the original
+        df_processed = df.copy()
+        
+        # Replace '?' with NaN and trim whitespace
+        for col in df_processed.columns:
+            df_processed[col] = df_processed[col].replace('?', np.nan)
+            if df_processed[col].dtype == 'object':
+                df_processed[col] = df_processed[col].str.strip()
+        
+        # Handle missing values for specific columns
+        cat_missing_cols = ['workclass', 'occupation', 'native-country']
+        for col in cat_missing_cols:
+            if col in df_processed.columns:
+                df_processed[col] = df_processed[col].fillna('Unknown')
+        
+        # Drop education-num as it's redundant with education (same as PrivBayes)
+        if 'education-num' in df_processed.columns:
+            df_processed = df_processed.drop('education-num', axis=1)
+        
+        # Identify discrete (categorical) columns for DP-CTGAN
+        # DP-CTGAN can handle mixed types, so we keep object columns as categorical
+        # and numerical columns as numerical
+        discrete_columns = []
+        
+        for col in df_processed.columns:
+            if df_processed[col].dtype == 'object':
+                discrete_columns.append(col)
+                # Clean categorical columns - ensure consistent string format
+                df_processed[col] = df_processed[col].astype(str)
+            # Keep numerical columns as numerical (age, fnlwgt, capital-gain, etc.)
+        
+        # Optional: Reduce cardinality of high-cardinality categorical columns
+        # This helps DP-CTGAN training stability
+        if 'native-country' in df_processed.columns:
+            country_counts = df_processed['native-country'].value_counts()
+            # Keep top 5 countries, group rest as 'Other'
+            top_countries = country_counts.head(5).index.tolist()
+            df_processed['native-country'] = df_processed['native-country'].apply(
+                lambda x: x if x in top_countries else 'Other'
+            )
+        
+        return df_processed, discrete_columns
+
+    def preprocess_for_synthesizer(self, df, synthesizer_type):
+        """
+        Unified preprocessing interface for different synthesizers.
+        
+        This method provides a common interface to preprocess data for different
+        synthesizer types while ensuring consistency for evaluation.
+        
+        Args:
+            df (pd.DataFrame): Input DataFrame to preprocess
+            synthesizer_type (str): Type of synthesizer ('privbayes' or 'dpctgan')
+            
+        Returns:
+            tuple: (processed_df, metadata_dict) where metadata_dict contains
+                   synthesizer-specific information like discrete_columns
+        """
+        if synthesizer_type.lower() == 'privbayes':
+            processed_df = self.preprocess_for_privbayes(df)
+            metadata = {
+                'synthesizer_type': 'privbayes',
+                'all_categorical': True,
+                'discrete_columns': list(processed_df.columns)  # All columns are discrete for PrivBayes
+            }
+            return processed_df, metadata
+            
+        elif synthesizer_type.lower() == 'dpctgan':
+            processed_df, discrete_columns = self.preprocess_for_dpctgan(df)
+            metadata = {
+                'synthesizer_type': 'dpctgan',
+                'all_categorical': False,
+                'discrete_columns': discrete_columns
+            }
+            return processed_df, metadata
+            
+        else:
+            raise ValueError(f"Unsupported synthesizer type: {synthesizer_type}. "
+                           f"Supported types: 'privbayes', 'dpctgan'")
+
+    def get_preprocessing_info(self, synthesizer_type):
+        """
+        Get information about the preprocessing applied for a specific synthesizer.
+        
+        This method provides metadata about the preprocessing steps, which is useful
+        for ensuring consistency when preprocessing test data for evaluation.
+        
+        Args:
+            synthesizer_type (str): Type of synthesizer ('privbayes' or 'dpctgan')
+            
+        Returns:
+            dict: Dictionary containing preprocessing information
+        """
+        if synthesizer_type.lower() == 'privbayes':
+            return {
+                'missing_strategy': 'fillna_unknown',
+                'discretization': 'quantile_based',
+                'cardinality_reduction': True,
+                'output_format': 'all_categorical_strings',
+                'dropped_columns': ['education-num']
+            }
+        elif synthesizer_type.lower() == 'dpctgan':
+            return {
+                'missing_strategy': 'fillna_unknown',
+                'discretization': 'none',
+                'cardinality_reduction': True,
+                'output_format': 'mixed_types',
+                'dropped_columns': ['education-num']
+            }
+        else:
+            raise ValueError(f"Unsupported synthesizer type: {synthesizer_type}")
+
 if __name__ == "__main__":
     # Initialize preprocessor and download data
     preprocessor = AdultDataPreprocessor()
@@ -228,29 +357,40 @@ if __name__ == "__main__":
     # Example: combine and split
     df_train_new, df_test_new = preprocessor.combine_and_split(df_train, df_test)
     
-    # Example: standard preprocessing
-    df_train_proc, df_test_proc = preprocessor.standard_preprocess(
-        df_train_new, df_test_new, missing_strategy='fillna', encoding='label', scale=True
-    )
-    print('Processed train shape:', df_train_proc.shape)
-    print('Processed test shape:', df_test_proc.shape)
+    # Take a small sample for testing
+    df_sample = df_train_new.sample(n=100, random_state=42)
     
-    # Example: PrivBayes preprocessing
-    print("\n--- PrivBayes Preprocessing ---")
-    df_privbayes = preprocessor.preprocess_for_privbayes(df_train_new)
-    print('PrivBayes processed shape:', df_privbayes.shape)
+    print("=" * 80)
+    print("UNIFIED PREPROCESSING SYSTEM TEST")
+    print("=" * 80)
     
-    print('\nFirst 5 rows with column names:')
-    pd.set_option('display.max_columns', None)  # Show all columns
-    pd.set_option('display.width', None)        # Don't wrap wide tables
-    pd.set_option('display.max_colwidth', None) # Don't truncate cell contents
-    print(df_privbayes.head().to_string())
+    # Test unified preprocessing interface
+    print("\n1. Testing PrivBayes preprocessing through unified interface:")
+    df_privbayes, metadata_privbayes = preprocessor.preprocess_for_synthesizer(df_sample, 'privbayes')
+    print(f'   Shape: {df_privbayes.shape}')
+    print(f'   Metadata: {metadata_privbayes}')
+    print(f'   Sample columns: {list(df_privbayes.columns)[:5]}...')
     
-    print('\nDataFrame info:')
-    print(df_privbayes.info())
+    print("\n2. Testing DP-CTGAN preprocessing through unified interface:")
+    df_dpctgan, metadata_dpctgan = preprocessor.preprocess_for_synthesizer(df_sample, 'dpctgan')
+    print(f'   Shape: {df_dpctgan.shape}')
+    print(f'   Metadata: {metadata_dpctgan}')
+    print(f'   Discrete columns: {metadata_dpctgan["discrete_columns"]}')
+    print(f'   Continuous columns: {[c for c in df_dpctgan.columns if c not in metadata_dpctgan["discrete_columns"]]}')
     
-    print('\nUnique values per column:')
-    for col in df_privbayes.columns:
-        unique_vals = df_privbayes[col].unique()
-        print(f'\n{col}: {len(unique_vals)} unique values')
-        print('Values:', sorted(unique_vals))
+    print("\n3. Data type comparison:")
+    print("   PrivBayes data types:")
+    for col in df_privbayes.columns[:5]:
+        print(f'     {col}: {df_privbayes[col].dtype} (sample: {df_privbayes[col].iloc[0]})')
+    
+    print("   DP-CTGAN data types:")
+    for col in df_dpctgan.columns[:5]:
+        print(f'     {col}: {df_dpctgan[col].dtype} (sample: {df_dpctgan[col].iloc[0]})')
+    
+    print("\n4. Preprocessing info:")
+    print("   PrivBayes info:", preprocessor.get_preprocessing_info('privbayes'))
+    print("   DP-CTGAN info:", preprocessor.get_preprocessing_info('dpctgan'))
+    
+    print("\n" + "=" * 80)
+    print("UNIFIED PREPROCESSING SYSTEM READY FOR PIPELINE!")
+    print("=" * 80)

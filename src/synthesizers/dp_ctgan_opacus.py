@@ -488,23 +488,22 @@ class OpacusDifferentiallyPrivateCTGAN:
             print(f"Using device: {self.device}")
             print(f"Privacy parameters: ε={epsilon}, δ={delta}")
     
-    def _prepare_data(self, data):
+    def _prepare_data(self, data, discrete_columns):
         """
-        Prepare data using improved CTGAN-style transformation
-        """
-        # Identify discrete columns automatically
-        discrete_columns = []
-        for col in data.columns:
-            if data[col].dtype == 'object':
-                discrete_columns.append(col)
-            elif data[col].nunique() <= 10:  # Treat low-cardinality numeric as discrete
-                discrete_columns.append(col)
+        Prepare data using CTGAN-style transformation with pre-identified discrete columns.
         
+        This method now expects discrete_columns to be provided by the unified preprocessing system
+        instead of auto-detecting them, ensuring consistency across the evaluation pipeline.
+        
+        Args:
+            data (pd.DataFrame): Preprocessed data from unified preprocessing system
+            discrete_columns (list): List of discrete column names from preprocessing metadata
+        """
         if self.verbose:
-            print(f"Detected discrete columns: {discrete_columns}")
+            print(f"Using provided discrete columns: {discrete_columns}")
             print(f"Continuous columns: {[c for c in data.columns if c not in discrete_columns]}")
         
-        # Initialize and fit data transformer
+        # Initialize and fit data transformer with provided discrete columns
         self.data_transformer = DataTransformer()
         self.data_transformer.fit(data, discrete_columns)
         
@@ -617,9 +616,14 @@ class OpacusDifferentiallyPrivateCTGAN:
         
         return cond_vec, mask, col_idx, cat_indices
     
-    def fit(self, data):
+    def fit(self, data, discrete_columns=None):
         """
         Train the improved DP-CTGAN
+        
+        Args:
+            data (pd.DataFrame): Preprocessed data from unified preprocessing system
+            discrete_columns (list): List of discrete column names from preprocessing metadata.
+                                    If None, will auto-detect (for backward compatibility)
         """
         print("=" * 60)
         print("TRAINING IMPROVED DP-CTGAN WITH PROPER CATEGORICAL HANDLING")
@@ -630,8 +634,18 @@ class OpacusDifferentiallyPrivateCTGAN:
         print(f"PacGAN size: {self.pac_size}, Gumbel tau: {self.tau}")
         print("=" * 60)
         
-        # Prepare data with improved transformation
-        transformed_data = self._prepare_data(data)
+        # Handle discrete columns (backward compatibility)
+        if discrete_columns is None:
+            print("⚠️  No discrete_columns provided - auto-detecting for backward compatibility")
+            discrete_columns = []
+            for col in data.columns:
+                if data[col].dtype == 'object':
+                    discrete_columns.append(col)
+                elif data[col].nunique() <= 10:
+                    discrete_columns.append(col)
+        
+        # Prepare data with provided discrete columns
+        transformed_data = self._prepare_data(data, discrete_columns)
         dataset_size = len(data)
         
         # Compute privacy parameters

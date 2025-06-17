@@ -9,6 +9,41 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score, f1_score
 from typing import Dict, Any
 
+def normalize_mixed_types(real_df: pd.DataFrame, synth_df: pd.DataFrame) -> tuple:
+    """
+    Normalize data types between real and synthetic dataframes to handle mixed types.
+    This ensures consistent data types for sklearn preprocessing.
+    
+    Args:
+        real_df (pd.DataFrame): Real data
+        synth_df (pd.DataFrame): Synthetic data
+        
+    Returns:
+        tuple: (normalized_real_df, normalized_synth_df)
+    """
+    real_normalized = real_df.copy()
+    synth_normalized = synth_df.copy()
+    
+    for col in real_df.columns:
+        real_col_type = real_df[col].dtype
+        
+        # Check if column should be categorical or numerical
+        if real_col_type in ['object', 'category'] or real_df[col].nunique() <= 20:
+            # Treat as categorical - convert everything to strings
+            real_normalized[col] = real_normalized[col].astype(str)
+            synth_normalized[col] = synth_normalized[col].astype(str)
+        else:
+            # Treat as numerical - convert to numeric, handle errors
+            real_normalized[col] = pd.to_numeric(real_normalized[col], errors='coerce')
+            synth_normalized[col] = pd.to_numeric(synth_normalized[col], errors='coerce')
+            
+            # Fill NaN values with median
+            median_val = real_normalized[col].median()
+            real_normalized[col] = real_normalized[col].fillna(median_val)
+            synth_normalized[col] = synth_normalized[col].fillna(median_val)
+    
+    return real_normalized, synth_normalized
+
 def run_tstr_evaluation(
     synth_train_df: pd.DataFrame,
     real_test_df: pd.DataFrame,
@@ -25,27 +60,36 @@ def run_tstr_evaluation(
     Returns:
         pd.DataFrame: Results containing model performance metrics
     """
-    # Create copies to avoid modifying original dataframes
-    synth_train_df = synth_train_df.copy()
-    real_test_df = real_test_df.copy()
+    # Normalize data types to handle mixed types from DP-CTGAN
+    synth_train_norm, real_test_norm = normalize_mixed_types(synth_train_df, real_test_df)
     
     # Separate features and target
-    X_train = synth_train_df.drop(target_column, axis=1)
-    y_train = synth_train_df[target_column]
-    X_test = real_test_df.drop(target_column, axis=1)
-    y_test = real_test_df[target_column]
+    X_train = synth_train_norm.drop(target_column, axis=1)
+    y_train = synth_train_norm[target_column]
+    X_test = real_test_norm.drop(target_column, axis=1)
+    y_test = real_test_norm[target_column]
     
-    # Identify categorical and numerical columns
-    categorical_cols = X_train.select_dtypes(include=['object', 'category']).columns
-    numerical_cols = X_train.select_dtypes(include=['int64', 'float64']).columns
+    # Re-identify categorical and numerical columns after normalization
+    categorical_cols = []
+    numerical_cols = []
+    
+    for col in X_train.columns:
+        if X_train[col].dtype in ['object', 'category'] or X_train[col].nunique() <= 20:
+            categorical_cols.append(col)
+        else:
+            numerical_cols.append(col)
     
     # Create preprocessing pipeline
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_cols),
-            ('num', StandardScaler(), numerical_cols)
-        ]
-    )
+    transformers = []
+    if categorical_cols:
+        transformers.append(('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_cols))
+    if numerical_cols:
+        transformers.append(('num', StandardScaler(), numerical_cols))
+    
+    if not transformers:
+        raise ValueError("No valid columns for preprocessing")
+    
+    preprocessor = ColumnTransformer(transformers=transformers)
     
     # Define classifiers to test
     classifiers: Dict[str, Any] = {

@@ -4,11 +4,46 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from typing import List, Optional
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import KFold
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
+
+def normalize_mixed_types(real_df: pd.DataFrame, synth_df: pd.DataFrame) -> tuple:
+    """
+    Normalize data types between real and synthetic dataframes to handle mixed types.
+    This ensures consistent data types for sklearn preprocessing.
+    
+    Args:
+        real_df (pd.DataFrame): Real data
+        synth_df (pd.DataFrame): Synthetic data
+        
+    Returns:
+        tuple: (normalized_real_df, normalized_synth_df)
+    """
+    real_normalized = real_df.copy()
+    synth_normalized = synth_df.copy()
+    
+    for col in real_df.columns:
+        real_col_type = real_df[col].dtype
+        
+        # Check if column should be categorical or numerical
+        if real_col_type in ['object', 'category'] or real_df[col].nunique() <= 20:
+            # Treat as categorical - convert everything to strings
+            real_normalized[col] = real_normalized[col].astype(str)
+            synth_normalized[col] = synth_normalized[col].astype(str)
+        else:
+            # Treat as numerical - convert to numeric, handle errors
+            real_normalized[col] = pd.to_numeric(real_normalized[col], errors='coerce')
+            synth_normalized[col] = pd.to_numeric(synth_normalized[col], errors='coerce')
+            
+            # Fill NaN values with median
+            median_val = real_normalized[col].median()
+            real_normalized[col] = real_normalized[col].fillna(median_val)
+            synth_normalized[col] = synth_normalized[col].fillna(median_val)
+    
+    return real_normalized, synth_normalized
 
 def plot_marginal_distributions(
     real_df: pd.DataFrame,
@@ -178,32 +213,41 @@ def calculate_pmse(
     Returns:
         float: PMSE score (lower is better)
     """
-    # Create copies to avoid modifying original dataframes
-    real_df = real_df.copy()
-    synth_df = synth_df.copy()
+    # Normalize data types to handle mixed types from DP-CTGAN
+    real_df_norm, synth_df_norm = normalize_mixed_types(real_df, synth_df)
     
     # Add source indicator
-    real_df['is_real'] = 1
-    synth_df['is_real'] = 0
+    real_df_norm['is_real'] = 1
+    synth_df_norm['is_real'] = 0
     
     # Combine datasets
-    combined_df = pd.concat([real_df, synth_df], axis=0, ignore_index=True)
+    combined_df = pd.concat([real_df_norm, synth_df_norm], axis=0, ignore_index=True)
     
     # Separate features and target
     X = combined_df.drop('is_real', axis=1)
     y = combined_df['is_real']
     
-    # Identify categorical columns
-    categorical_cols = X.select_dtypes(include=['object', 'category']).columns
-    numerical_cols = X.select_dtypes(include=['int64', 'float64']).columns
+    # Re-identify categorical and numerical columns after normalization
+    categorical_cols = []
+    numerical_cols = []
+    
+    for col in X.columns:
+        if X[col].dtype in ['object', 'category'] or X[col].nunique() <= 20:
+            categorical_cols.append(col)
+        else:
+            numerical_cols.append(col)
     
     # Create preprocessing pipeline
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_cols),
-            ('num', 'passthrough', numerical_cols)
-        ]
-    )
+    transformers = []
+    if categorical_cols:
+        transformers.append(('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_cols))
+    if numerical_cols:
+        transformers.append(('num', 'passthrough', numerical_cols))
+    
+    if not transformers:
+        raise ValueError("No valid columns for preprocessing")
+    
+    preprocessor = ColumnTransformer(transformers=transformers)
     
     # Create model pipeline
     model = Pipeline([
