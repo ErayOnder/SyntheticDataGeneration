@@ -1,4 +1,27 @@
-pandas
-numpy
-scikit-learn
-gower
+# Core data manipulation and scientific computing
+pandas>=1.5.0
+numpy>=1.21.0
+
+# Machine learning and statistical analysis
+scikit-learn>=1.2.0
+gower>=0.1.2
+
+# Deep learning - PyTorch ecosystem
+torch>=1.12.0
+torchvision>=0.13.0
+
+# Differential privacy
+opacus>=1.4.0
+
+# Data visualization
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
+# Graph analysis
+networkx>=2.8.0
+
+# Progress bars and utilities
+tqdm>=4.64.0
+
+# For handling mixed-type data
+typing-extensions>=4.0.0
