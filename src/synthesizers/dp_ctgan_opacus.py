@@ -832,8 +832,9 @@ class OpacusDifferentiallyPrivateCTGAN:
                 cond_start = sum(info['size'] for info in self.data_transformer.output_info[:i] if info['type'] == 'discrete')
                 target_discrete = cond_vec[:, cond_start:cond_start + n_categories]
                 
-                # Calculate cross-entropy loss
-                loss = nn.functional.cross_entropy(fake_discrete, target_discrete)
+                # Convert one-hot target to class indices
+                target_indices = torch.argmax(target_discrete, dim=1)
+                loss = nn.functional.cross_entropy(fake_discrete, target_indices)
                 return loss
             
             if info['type'] == 'discrete':
