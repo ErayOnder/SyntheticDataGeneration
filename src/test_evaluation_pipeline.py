@@ -271,24 +271,26 @@ def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, eps
     if target_column not in synthetic_data.columns:
         print(f"❌ Target column '{target_column}' not found in synthetic data")
         print(f"   Available columns: {list(synthetic_data.columns)}")
-        return
+        return None
     if target_column not in real_test.columns:
         print(f"❌ Target column '{target_column}' not found in real test data")
         print(f"   Available columns: {list(real_test.columns)}")
-        return
+        return None
     
     # Check if datasets have same columns (this should be guaranteed by unified preprocessing)
     if set(synthetic_data.columns) != set(real_test.columns):
         print("❌ Column mismatch between synthetic and test data")
         print(f"   Synthetic columns: {sorted(synthetic_data.columns)}")
         print(f"   Test columns: {sorted(real_test.columns)}")
-        return
+        return None
     
     print("✅ Column consistency verified - unified preprocessing working correctly!")
     
     # Create results directory with epsilon in path
     results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'results', f"{synthesizer_type}_eps_{epsilon}"))
     os.makedirs(results_dir, exist_ok=True)
+    
+    metrics = {}
     
     # 1. BASELINE: Train on Real, Test on Real
     print(f"\n📊 Running BASELINE evaluation: Train on Real, Test on Real...")
@@ -305,6 +307,9 @@ def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, eps
         # Save baseline results
         baseline_results.to_csv(f"{results_dir}/baseline_tstr_results.csv", index=False)
         print(f"💾 Baseline results saved to {results_dir}/baseline_tstr_results.csv")
+        
+        # Store baseline metrics
+        metrics['baseline'] = baseline_results.set_index('Model')['Accuracy'].to_dict()
         
     except Exception as e:
         print(f"❌ Error in baseline evaluation: {str(e)}")
@@ -328,10 +333,14 @@ def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, eps
         tstr_results.to_csv(f"{results_dir}/tstr_results.csv", index=False)
         print(f"💾 TSTR results saved to {results_dir}/tstr_results.csv")
         
+        # Store TSTR metrics
+        metrics['tstr'] = tstr_results.set_index('Model')['Accuracy'].to_dict()
+        
         # 3. COMPARISON: Show utility retention
         if baseline_results is not None:
             print(f"\n📊 UTILITY RETENTION COMPARISON:")
             print("=" * 50)
+            retention_metrics = {}
             for _, baseline_row in baseline_results.iterrows():
                 tstr_row = tstr_results[tstr_results['Model'] == baseline_row['Model']]
                 if not tstr_row.empty:
@@ -339,12 +348,17 @@ def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, eps
                     tstr_acc = tstr_row.iloc[0]['Accuracy']
                     retention = (tstr_acc / baseline_acc) * 100 if baseline_acc > 0 else 0
                     print(f"   {baseline_row['Model']:15} | Baseline: {baseline_acc:.3f} | Synthetic: {tstr_acc:.3f} | Retention: {retention:.1f}%")
+                    retention_metrics[baseline_row['Model']] = retention
             print("=" * 50)
+            metrics['retention'] = retention_metrics
         
     except Exception as e:
         print(f"❌ Error in TSTR evaluation: {str(e)}")
         import traceback
         traceback.print_exc()
+        return None
+    
+    return metrics
 
 def test_privacy_metrics(real_train, synthetic_data, synthesizer_type, epsilon, trial_num=0, total_trials=1):
     """Test privacy evaluation metrics."""
@@ -426,7 +440,7 @@ def aggregate_metrics(metrics_list):
         for metrics in metrics_list:
             if key in metrics:
                 if isinstance(metrics[key], dict):
-                    # Handle nested metrics (like dcr_stats)
+                    # Handle nested metrics (like dcr_stats or ml metrics)
                     if key not in aggregated:
                         aggregated[key] = {}
                     for subkey, subvalue in metrics[key].items():
@@ -483,6 +497,7 @@ def run_evaluation_pipeline(synthesizer_type='privbayes', train_size=1000, test_
     # Store metrics for all trials
     all_statistical_metrics = []
     all_privacy_metrics = []
+    all_ml_metrics = []
     
     for trial in range(n_trials):
         print(f"\n{'=' * 80}")
@@ -503,13 +518,17 @@ def run_evaluation_pipeline(synthesizer_type='privbayes', train_size=1000, test_
         # Step 3: Run all evaluation metrics
         statistical_metrics = test_statistical_metrics(real_train, synthetic_data, synthesizer_type, epsilon, trial, n_trials)
         privacy_metrics = test_privacy_metrics(real_train, synthetic_data, synthesizer_type, epsilon, trial, n_trials)
+        ml_metrics = test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, epsilon)
         
         all_statistical_metrics.append(statistical_metrics)
         all_privacy_metrics.append(privacy_metrics)
+        if ml_metrics is not None:
+            all_ml_metrics.append(ml_metrics)
     
     # Aggregate metrics
     aggregated_statistical = aggregate_metrics(all_statistical_metrics)
     aggregated_privacy = aggregate_metrics(all_privacy_metrics)
+    aggregated_ml = aggregate_metrics(all_ml_metrics) if all_ml_metrics else None
     
     # Save aggregated metrics
     import json
@@ -517,6 +536,9 @@ def run_evaluation_pipeline(synthesizer_type='privbayes', train_size=1000, test_
         json.dump(aggregated_statistical, f, indent=4)
     with open(os.path.join(results_dir, 'aggregated_privacy_metrics.json'), 'w') as f:
         json.dump(aggregated_privacy, f, indent=4)
+    if aggregated_ml:
+        with open(os.path.join(results_dir, 'aggregated_ml_metrics.json'), 'w') as f:
+            json.dump(aggregated_ml, f, indent=4)
     
     print(f"\n{'=' * 80}")
     print(f"✅ EVALUATION PIPELINE COMPLETED FOR {synthesizer_type.upper()} (Epsilon: {epsilon})")
