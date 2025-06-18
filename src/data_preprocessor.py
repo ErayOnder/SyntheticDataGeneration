@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
+import requests
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
@@ -82,67 +83,6 @@ class AdultDataPreprocessor:
         """
         df_all = pd.concat([df_train, df_test], ignore_index=True)
         return train_test_split(df_all, test_size=test_size, random_state=random_state, stratify=df_all['income'])
-
-    def standard_preprocess(self, df_train, df_test, missing_strategy='dropna', encoding='label', scale=False):
-        """
-        Standard preprocessing for machine learning models.
-        
-        This method handles missing values, encodes categorical variables, and optionally
-        scales numerical features. It works on copies of the input DataFrames to prevent
-        modifying the original data.
-        
-        Args:
-            df_train (pd.DataFrame): Training data
-            df_test (pd.DataFrame): Test data
-            missing_strategy (str): How to handle missing values. Options: 'dropna' or 'fillna'
-            encoding (str): How to encode categorical variables. Options: 'label' or 'onehot'
-            scale (bool): Whether to scale numerical features. Defaults to False
-            
-        Returns:
-            tuple: (processed_train_df, processed_test_df) containing the preprocessed DataFrames
-        """
-        # Create copies to avoid modifying original DataFrames
-        df_train = df_train.copy()
-        df_test = df_test.copy()
-        
-        cat_missing_cols = ['workclass', 'occupation', 'native-country']
-        # Replace '?' with NaN and trim whitespace
-        for df in [df_train, df_test]:
-            for col in df.columns:
-                df[col] = df[col].replace('?', np.nan)
-                if df[col].dtype == 'object':
-                    df[col] = df[col].str.strip()
-        # Handle missing values
-        if missing_strategy == 'dropna':
-            df_train = df_train.dropna(subset=cat_missing_cols).reset_index(drop=True)
-            df_test = df_test.dropna(subset=cat_missing_cols).reset_index(drop=True)
-        elif missing_strategy == 'fillna':
-            for col in cat_missing_cols:
-                df_train[col] = df_train[col].fillna('Unknown')
-                df_test[col] = df_test[col].fillna('Unknown')
-        # Identify categorical columns (excluding target)
-        categorical_cols = [col for col in df_train.columns if df_train[col].dtype == 'object' and col != 'income']
-        # Encode target
-        le_income = LabelEncoder().fit(df_train['income'])
-        df_train['income'] = le_income.transform(df_train['income'])
-        df_test['income'] = le_income.transform(df_test['income'])
-        # Encode features
-        if encoding == 'label':
-            for col in categorical_cols:
-                le = LabelEncoder().fit(df_train[col])
-                df_train[col] = le.transform(df_train[col])
-                df_test[col] = le.transform(df_test[col])
-        elif encoding == 'onehot':
-            df_train = pd.get_dummies(df_train, columns=categorical_cols)
-            df_test = pd.get_dummies(df_test, columns=categorical_cols)
-            df_test = df_test.reindex(columns=df_train.columns, fill_value=0)
-        # Feature scaling
-        if scale:
-            numerical_cols = [col for col in df_train.columns if df_train[col].dtype in ['int64', 'float64'] and col != 'income']
-            scaler = StandardScaler()
-            df_train[numerical_cols] = scaler.fit_transform(df_train[numerical_cols])
-            df_test[numerical_cols] = scaler.transform(df_test[numerical_cols])
-        return df_train, df_test
 
     def preprocess_for_privbayes(self, df):
         """
@@ -348,6 +288,230 @@ class AdultDataPreprocessor:
         else:
             raise ValueError(f"Unsupported synthesizer type: {synthesizer_type}")
 
+class CovertypeDataPreprocessor:
+    """
+    A class for preprocessing the UCI Covertype dataset.
+    
+    This class provides methods to download, load, and preprocess the Covertype dataset
+    for both standard machine learning tasks and synthetic data generation.
+    
+    Attributes:
+        data_dir (str): Directory to store downloaded data files
+        data_url (str): URL for the dataset
+        data_path (str): Path to the data file
+        df_columns (list): List of column names for the dataset
+    """
+    
+    def __init__(self, data_dir='data'):
+        """
+        Initialize the CovertypeDataPreprocessor.
+        
+        Args:
+            data_dir (str): Directory to store downloaded data files. Defaults to 'data'.
+        """
+        self.data_dir = data_dir
+        self.data_url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/covtype/covtype.data.gz'
+        self.data_path = os.path.join(data_dir, 'covtype.data.gz')
+        
+        # Define column names
+        # First 10 columns are numerical features
+        numerical_features = [
+            'Elevation', 'Aspect', 'Slope', 'Horizontal_Distance_To_Hydrology',
+            'Vertical_Distance_To_Hydrology', 'Horizontal_Distance_To_Roadways',
+            'Hillshade_9am', 'Hillshade_Noon', 'Hillshade_3pm',
+            'Horizontal_Distance_To_Fire_Points'
+        ]
+        
+        # Next 4 columns are Wilderness Area binary features
+        wilderness_areas = [f'Wilderness_Area_{i+1}' for i in range(4)]
+        
+        # Next 40 columns are Soil Type binary features
+        soil_types = [f'Soil_Type_{i+1}' for i in range(40)]
+        
+        # Combine all column names
+        self.df_columns = numerical_features + wilderness_areas + soil_types + ['Cover_Type']
+
+    def download(self):
+        """
+        Download the Covertype dataset from UCI repository.
+        
+        Downloads the dataset if it doesn't exist in the data directory.
+        Creates the data directory if it doesn't exist.
+        """
+        os.makedirs(self.data_dir, exist_ok=True)
+        if not os.path.exists(self.data_path):
+            print(f"Downloading Covertype dataset to {self.data_path}...")
+            response = requests.get(self.data_url, stream=True)
+            response.raise_for_status()  # Raise an exception for bad status codes
+            
+            with open(self.data_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            print("Download complete!")
+        else:
+            print(f"Dataset already exists at {self.data_path}")
+
+    def load(self):
+        """
+        Load the Covertype dataset from local file.
+        
+        Returns:
+            pd.DataFrame: The loaded dataset with proper column names
+        """
+        if not os.path.exists(self.data_path):
+            raise FileNotFoundError(
+                f"Dataset not found at {self.data_path}. "
+                "Please run download() method first."
+            )
+        
+        print(f"Loading dataset from {self.data_path}...")
+        df = pd.read_csv(
+            self.data_path,
+            compression='gzip',
+            header=None,
+            names=self.df_columns
+        )
+        print(f"Dataset loaded successfully! Shape: {df.shape}")
+        return df
+
+    def combine_and_split(self, df, test_size=0.2, random_state=430):
+        """
+        Split the Covertype dataset into train and test sets.
+        
+        Args:
+            df (pd.DataFrame): Input DataFrame
+            test_size (float): Proportion of data to use for testing. Defaults to 0.2
+            random_state (int): Random seed for reproducibility. Defaults to 430
+            
+        Returns:
+            tuple: (df_train, df_test) containing the split DataFrames
+        """
+        return train_test_split(
+            df,
+            test_size=test_size,
+            random_state=random_state,
+            stratify=df['Cover_Type']  # Stratify by target column
+        )
+
+    def preprocess_for_privbayes(self, df):
+        """
+        Preprocess the Covertype dataset specifically for PrivBayes algorithm.
+        
+        This method prepares the data for PrivBayes by:
+        1. Discretizing numerical columns into categorical bins using quantiles
+        2. Converting all columns to categorical strings
+        3. Ensuring consistent format for binary columns
+        
+        Args:
+            df (pd.DataFrame): Input DataFrame to preprocess
+            
+        Returns:
+            pd.DataFrame: Preprocessed DataFrame with all columns as categorical strings
+        """
+        # Create a copy to avoid modifying the original
+        df_processed = df.copy()
+        
+        # Get the first 10 numerical columns (excluding target)
+        numerical_cols = self.df_columns[:10]
+        
+        # Discretize numerical columns using quantiles
+        for col in numerical_cols:
+            # Use 5 bins (quintiles) for each numerical column
+            df_processed[col] = pd.qcut(
+                df_processed[col],
+                q=5,
+                precision=0,
+                duplicates='drop'
+            )
+            # Convert to string type
+            df_processed[col] = df_processed[col].astype(str)
+        
+        # Convert remaining columns (binary features and target) to strings
+        remaining_cols = [col for col in df_processed.columns if col not in numerical_cols]
+        for col in remaining_cols:
+            df_processed[col] = df_processed[col].astype(str)
+        
+        return df_processed
+
+    def preprocess_for_dpctgan(self, df):
+        """
+        Preprocess the Covertype dataset specifically for DP-CTGAN synthesizer.
+        
+        This method prepares the data for DP-CTGAN by:
+        1. Keeping numerical columns as numerical
+        2. Identifying discrete columns (binary features and target)
+        3. Ensuring proper data types for each column type
+        
+        Args:
+            df (pd.DataFrame): Input DataFrame to preprocess
+            
+        Returns:
+            tuple: (processed_df, discrete_columns_list) where discrete_columns_list 
+                   contains names of categorical columns for DP-CTGAN
+        """
+        # Create a copy to avoid modifying the original
+        df_processed = df.copy()
+        
+        # Identify numerical columns (first 10 columns)
+        numerical_cols = self.df_columns[:10]
+        
+        # Identify discrete columns (Wilderness_Area, Soil_Type, and Cover_Type)
+        discrete_columns = []
+        
+        # Add Wilderness Area columns (4 columns)
+        discrete_columns.extend([f'Wilderness_Area_{i+1}' for i in range(4)])
+        
+        # Add Soil Type columns (40 columns)
+        discrete_columns.extend([f'Soil_Type_{i+1}' for i in range(40)])
+        
+        # Add target column
+        discrete_columns.append('Cover_Type')
+        
+        # Ensure numerical columns are float type
+        for col in numerical_cols:
+            df_processed[col] = df_processed[col].astype(float)
+        
+        # Ensure discrete columns are int type
+        for col in discrete_columns:
+            df_processed[col] = df_processed[col].astype(int)
+        
+        return df_processed, discrete_columns
+
+    def preprocess_for_synthesizer(self, df, synthesizer_type):
+        """
+        Unified preprocessing interface for different synthesizers.
+        
+        This method provides a common interface to preprocess data for different
+        synthesizer types while ensuring consistency for evaluation.
+        
+        Args:
+            df (pd.DataFrame): Input DataFrame to preprocess
+            synthesizer_type (str): Type of synthesizer ('privbayes' or 'dpctgan')
+            
+        Returns:
+            tuple: (processed_df, metadata_dict) where metadata_dict contains
+                   synthesizer-specific information like discrete_columns
+        """
+        if synthesizer_type.lower() == 'privbayes':
+            processed_df = self.preprocess_for_privbayes(df)
+            metadata = {
+                'synthesizer_type': 'privbayes',
+                'all_categorical': True,
+                'discrete_columns': list(processed_df.columns)  # All columns are discrete for PrivBayes
+            }
+            return processed_df, metadata
+            
+        elif synthesizer_type.lower() == 'dpctgan':
+            processed_df, discrete_columns = self.preprocess_for_dpctgan(df)
+            metadata = {
+                'synthesizer_type': 'dpctgan',
+                'all_categorical': False,
+                'discrete_columns': discrete_columns
+            }
+            return processed_df, metadata
+        else:
+            raise ValueError(f"Unsupported synthesizer type: {synthesizer_type}")
+
 if __name__ == "__main__":
     # Initialize preprocessor and download data
     preprocessor = AdultDataPreprocessor()
@@ -392,5 +556,62 @@ if __name__ == "__main__":
     print("   DP-CTGAN info:", preprocessor.get_preprocessing_info('dpctgan'))
     
     print("\n" + "=" * 80)
-    print("UNIFIED PREPROCESSING SYSTEM READY FOR PIPELINE!")
+    print("COVERTYPE DATASET TEST")
+    print("=" * 80)
+    
+    # Initialize Covertype preprocessor
+    covertype_preprocessor = CovertypeDataPreprocessor()
+    
+    # Test download
+    print("\n1. Testing download:")
+    covertype_preprocessor.download()
+    
+    # Test load
+    print("\n2. Testing load:")
+    df_covertype = covertype_preprocessor.load()
+    print(f"   Loaded dataset shape: {df_covertype.shape}")
+    print(f"   Column names: {df_covertype.columns.tolist()}")
+    
+    # Take a small sample for testing
+    df_covertype_sample = df_covertype.sample(n=100, random_state=42)
+    
+    # Test PrivBayes preprocessing
+    print("\n3. Testing PrivBayes preprocessing:")
+    df_covertype_privbayes = covertype_preprocessor.preprocess_for_privbayes(df_covertype_sample)
+    print(f"   Processed shape: {df_covertype_privbayes.shape}")
+    print("\n   Data types after PrivBayes preprocessing:")
+    for col in df_covertype_privbayes.columns[:5]:
+        print(f"     {col}: {df_covertype_privbayes[col].dtype} (sample: {df_covertype_privbayes[col].iloc[0]})")
+    
+    # Test DP-CTGAN preprocessing
+    print("\n4. Testing DP-CTGAN preprocessing:")
+    df_covertype_dpctgan, discrete_cols = covertype_preprocessor.preprocess_for_dpctgan(df_covertype_sample)
+    print(f"   Processed shape: {df_covertype_dpctgan.shape}")
+    print(f"   Number of discrete columns: {len(discrete_cols)}")
+    print("\n   Data types after DP-CTGAN preprocessing:")
+    print("   Numerical columns (first 5):")
+    for col in df_covertype_dpctgan.columns[:5]:
+        print(f"     {col}: {df_covertype_dpctgan[col].dtype} (sample: {df_covertype_dpctgan[col].iloc[0]})")
+    
+    print("\n   Discrete columns (first 5):")
+    for col in discrete_cols[:5]:
+        print(f"     {col}: {df_covertype_dpctgan[col].dtype} (sample: {df_covertype_dpctgan[col].iloc[0]})")
+    
+    print("\n5. Column type distribution:")
+    numerical_cols = [col for col in df_covertype_dpctgan.columns if col not in discrete_cols]
+    print(f"   Numerical columns: {len(numerical_cols)}")
+    print(f"   Discrete columns: {len(discrete_cols)}")
+    
+    # Verify discrete columns are integers
+    print("\n6. Discrete column type verification:")
+    non_int_discrete = [col for col in discrete_cols if df_covertype_dpctgan[col].dtype != 'int64']
+    if non_int_discrete:
+        print(f"   WARNING: Found {len(non_int_discrete)} discrete columns that are not integers:")
+        for col in non_int_discrete[:5]:
+            print(f"     {col}: {df_covertype_dpctgan[col].dtype}")
+    else:
+        print("   All discrete columns are properly converted to integers")
+    
+    print("\n" + "=" * 80)
+    print("COVERTYPE PREPROCESSING SYSTEM READY FOR PIPELINE!")
     print("=" * 80)

@@ -4,12 +4,13 @@ import pandas as pd
 import numpy as np
 import os
 import sys
+import argparse
 from pathlib import Path
 
 # Add src to path for imports
 sys.path.append('src')
 
-from data_preprocessor import AdultDataPreprocessor
+from data_preprocessor import AdultDataPreprocessor, CovertypeDataPreprocessor
 from synthesizers.privbayes import MyPrivBayes
 from synthesizers.dp_ctgan_opacus import OpacusDifferentiallyPrivateCTGAN
 from evaluation.statistical_metrics import (
@@ -23,11 +24,12 @@ from evaluation.privacy_metrics import (
     calculate_dcr
 )
 
-def load_and_preprocess_adult_data(synthesizer_type, train_size=1000, test_size=500):
+def load_and_preprocess_data(dataset_type, synthesizer_type, train_size=1000, test_size=500):
     """
-    Load and preprocess the Adult dataset using the unified preprocessing system.
+    Load and preprocess data using the unified preprocessing system.
     
     Args:
+        dataset_type (str): Type of dataset ('adult' or 'covertype')
         synthesizer_type (str): Type of synthesizer ('privbayes' or 'dpctgan')
         train_size (int): Number of training samples to use
         test_size (int): Number of test samples to use
@@ -36,26 +38,45 @@ def load_and_preprocess_adult_data(synthesizer_type, train_size=1000, test_size=
         tuple: (real_train, real_test, preprocessing_metadata)
     """
     print(f"=" * 80)
-    print(f"LOADING AND PREPROCESSING DATA FOR {synthesizer_type.upper()}")
+    print(f"LOADING AND PREPROCESSING {dataset_type.upper()} DATA FOR {synthesizer_type.upper()}")
     print(f"=" * 80)
     
     # Initialize preprocessor with absolute path to root data directory
     data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data'))
-    preprocessor = AdultDataPreprocessor(data_dir=data_dir)
     
-    # Download data if not exists
-    print("📥 Downloading Adult dataset if needed...")
-    preprocessor.download()
-    
-    # Load data
-    print("📋 Loading Adult dataset...")
-    df_train, df_test = preprocessor.load()
-    
-    # Combine and split to ensure consistent preprocessing
-    print("🔄 Combining and splitting data...")
-    df_train_combined, df_test_combined = preprocessor.combine_and_split(
-        df_train, df_test, test_size=0.3, random_state=42
-    )
+    if dataset_type.lower() == 'adult':
+        preprocessor = AdultDataPreprocessor(data_dir=data_dir)
+        # Download data if not exists
+        print("📥 Downloading Adult dataset if needed...")
+        preprocessor.download()
+        
+        # Load data
+        print("📋 Loading Adult dataset...")
+        df_train, df_test = preprocessor.load()
+        
+        # Combine and split to ensure consistent preprocessing
+        print("🔄 Combining and splitting data...")
+        df_train_combined, df_test_combined = preprocessor.combine_and_split(
+            df_train, df_test, test_size=0.3, random_state=42
+        )
+        
+    elif dataset_type.lower() == 'covertype':
+        preprocessor = CovertypeDataPreprocessor(data_dir=data_dir)
+        # Download data if not exists
+        print("📥 Downloading Covertype dataset if needed...")
+        preprocessor.download()
+        
+        # Load data
+        print("📋 Loading Covertype dataset...")
+        df = preprocessor.load()
+        
+        # Split into train and test
+        print("🔄 Splitting data...")
+        df_train_combined, df_test_combined = preprocessor.combine_and_split(
+            df, test_size=0.3, random_state=42
+        )
+    else:
+        raise ValueError(f"Unsupported dataset type: {dataset_type}")
     
     # Use unified preprocessing system
     print(f"⚙️  Preprocessing data for {synthesizer_type}...")
@@ -184,14 +205,15 @@ def test_synthesizer(synthesizer_type, real_train, preprocessing_metadata, n_syn
         traceback.print_exc()
         return None
 
-def test_statistical_metrics(real_train, synthetic_data, synthesizer_type, epsilon, trial_num=0, total_trials=1):
+def test_statistical_metrics(real_train, synthetic_data, synthesizer_type, dataset_type, epsilon, trial_num=0, total_trials=1):
     """Test statistical evaluation metrics."""
     print(f"\n{'=' * 80}")
-    print(f"TESTING STATISTICAL METRICS - {synthesizer_type.upper()} (Epsilon: {epsilon}) - Trial {trial_num + 1}/{total_trials}")
+    print(f"TESTING STATISTICAL METRICS - {dataset_type.upper()} - {synthesizer_type.upper()} (Epsilon: {epsilon}) - Trial {trial_num + 1}/{total_trials}")
     print(f"{'=' * 80}")
     
-    # Create results directory with epsilon in path
-    results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'results', f"{synthesizer_type}_eps_{epsilon}"))
+    # Create results directory with dataset and epsilon in path
+    results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'results', 
+        f"{dataset_type}_{synthesizer_type}_eps_{epsilon}"))
     os.makedirs(results_dir, exist_ok=True)
     
     metrics = {}
@@ -255,10 +277,10 @@ def test_statistical_metrics(real_train, synthetic_data, synthesizer_type, epsil
     
     return metrics
 
-def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, epsilon, target_column='income'):
+def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, dataset_type, epsilon, target_column='income'):
     """Test ML utility evaluation (TSTR) with proper preprocessing consistency."""
     print(f"\n{'=' * 80}")
-    print(f"TESTING ML UTILITY (TSTR) - {synthesizer_type.upper()} (Epsilon: {epsilon})")
+    print(f"TESTING ML UTILITY (TSTR) - {dataset_type.upper()} - {synthesizer_type.upper()} (Epsilon: {epsilon})")
     print(f"{'=' * 80}")
     
     print(f"🧠 Testing TSTR evaluation...")
@@ -286,8 +308,9 @@ def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, eps
     
     print("✅ Column consistency verified - unified preprocessing working correctly!")
     
-    # Create results directory with epsilon in path
-    results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'results', f"{synthesizer_type}_eps_{epsilon}"))
+    # Create results directory with dataset and epsilon in path
+    results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'results', 
+        f"{dataset_type}_{synthesizer_type}_eps_{epsilon}"))
     os.makedirs(results_dir, exist_ok=True)
     
     metrics = {}
@@ -360,14 +383,15 @@ def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, eps
     
     return metrics
 
-def test_privacy_metrics(real_train, synthetic_data, synthesizer_type, epsilon, trial_num=0, total_trials=1):
+def test_privacy_metrics(real_train, synthetic_data, synthesizer_type, dataset_type, epsilon, trial_num=0, total_trials=1):
     """Test privacy evaluation metrics."""
     print(f"\n{'=' * 80}")
-    print(f"TESTING PRIVACY METRICS - {synthesizer_type.upper()} (Epsilon: {epsilon}) - Trial {trial_num + 1}/{total_trials}")
+    print(f"TESTING PRIVACY METRICS - {dataset_type.upper()} - {synthesizer_type.upper()} (Epsilon: {epsilon}) - Trial {trial_num + 1}/{total_trials}")
     print(f"{'=' * 80}")
     
-    # Create results directory with epsilon in path
-    results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'results', f"{synthesizer_type}_eps_{epsilon}"))
+    # Create results directory with dataset and epsilon in path
+    results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'results', 
+        f"{dataset_type}_{synthesizer_type}_eps_{epsilon}"))
     os.makedirs(results_dir, exist_ok=True)
     
     metrics = {}
@@ -470,115 +494,127 @@ def aggregate_metrics(metrics_list):
     
     return aggregated
 
-def run_evaluation_pipeline(synthesizer_type='privbayes', train_size=1000, test_size=500, epsilon=1.0, n_trials=3):
+def run_evaluation_pipeline(dataset_type, synthesizer_type, train_size=1000, test_size=500, epsilon_values=[1.0], n_trials=3):
     """
     Run the complete evaluation pipeline for a specified synthesizer.
     
     Args:
-        synthesizer_type (str): 'privbayes' or 'dpctgan'
+        dataset_type (str): Type of dataset ('adult' or 'covertype')
+        synthesizer_type (str): Type of synthesizer ('privbayes' or 'dpctgan')
         train_size (int): Number of training samples
         test_size (int): Number of test samples
-        epsilon (float): Privacy budget for differential privacy
+        epsilon_values (list): List of privacy budgets for differential privacy
         n_trials (int): Number of trials to run
     """
     print(f"🚀 UNIFIED EVALUATION PIPELINE")
     print(f"{'=' * 80}")
+    print(f"📊 Dataset: {dataset_type.upper()}")
     print(f"🔧 Synthesizer: {synthesizer_type.upper()}")
-    print(f"🔒 Epsilon: {epsilon}")
+    print(f"🔒 Epsilon values: {epsilon_values}")
     print(f"📊 Training samples: {train_size}")
     print(f"📊 Test samples: {test_size}")
     print(f"🔄 Number of trials: {n_trials}")
     print(f"{'=' * 80}")
     
-    # Create results directory
-    results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'results', f"{synthesizer_type}_eps_{epsilon}"))
-    os.makedirs(results_dir, exist_ok=True)
-    
-    # Store metrics for all trials
-    all_statistical_metrics = []
-    all_privacy_metrics = []
-    all_ml_metrics = []
-    
-    for trial in range(n_trials):
-        print(f"\n{'=' * 80}")
-        print(f"RUNNING TRIAL {trial + 1}/{n_trials}")
-        print(f"{'=' * 80}")
-        
-        # Step 1: Load and preprocess data using unified system
-        real_train, real_test, metadata = load_and_preprocess_adult_data(
-            synthesizer_type, train_size, test_size
-        )
-        
-        # Step 2: Test synthesizer
-        synthetic_data = test_synthesizer(synthesizer_type, real_train, metadata, epsilon=epsilon)
-        if synthetic_data is None:
-            print(f"\n❌ Cannot proceed with evaluation due to synthesis failure")
-            continue
-        
-        # Step 3: Run all evaluation metrics
-        statistical_metrics = test_statistical_metrics(real_train, synthetic_data, synthesizer_type, epsilon, trial, n_trials)
-        privacy_metrics = test_privacy_metrics(real_train, synthetic_data, synthesizer_type, epsilon, trial, n_trials)
-        ml_metrics = test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, epsilon)
-        
-        all_statistical_metrics.append(statistical_metrics)
-        all_privacy_metrics.append(privacy_metrics)
-        if ml_metrics is not None:
-            all_ml_metrics.append(ml_metrics)
-    
-    # Aggregate metrics
-    aggregated_statistical = aggregate_metrics(all_statistical_metrics)
-    aggregated_privacy = aggregate_metrics(all_privacy_metrics)
-    aggregated_ml = aggregate_metrics(all_ml_metrics) if all_ml_metrics else None
-    
-    # Save aggregated metrics
-    import json
-    with open(os.path.join(results_dir, 'aggregated_statistical_metrics.json'), 'w') as f:
-        json.dump(aggregated_statistical, f, indent=4)
-    with open(os.path.join(results_dir, 'aggregated_privacy_metrics.json'), 'w') as f:
-        json.dump(aggregated_privacy, f, indent=4)
-    if aggregated_ml:
-        with open(os.path.join(results_dir, 'aggregated_ml_metrics.json'), 'w') as f:
-            json.dump(aggregated_ml, f, indent=4)
-    
-    print(f"\n{'=' * 80}")
-    print(f"✅ EVALUATION PIPELINE COMPLETED FOR {synthesizer_type.upper()} (Epsilon: {epsilon})")
-    print(f"📊 Results aggregated across {n_trials} trials")
-    print(f"📁 Check 'results/{synthesizer_type}_eps_{epsilon}/' directory for outputs")
-    print(f"{'=' * 80}")
-
-def main():
-    """Main function to run evaluation pipeline(s)."""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description='Run unified evaluation pipeline')
-    parser.add_argument('--synthesizer', choices=['privbayes', 'dpctgan', 'both'], 
-                       default='both', help='Which synthesizer to test')
-    parser.add_argument('--train-size', type=int, default=1000, 
-                       help='Number of training samples')
-    parser.add_argument('--test-size', type=int, default=500, 
-                       help='Number of test samples')
-    parser.add_argument('--epsilons', type=float, nargs='+', default=[1.0],
-                       help='List of epsilon values to test (e.g., 0.1 1.0 10.0)')
-    parser.add_argument('--n-trials', type=int, default=3,
-                       help='Number of trials to run for each configuration')
-    
-    args = parser.parse_args()
-    
-    for epsilon in args.epsilons:
+    # Run evaluation for each epsilon value
+    for epsilon in epsilon_values:
         print(f"\n{'=' * 80}")
         print(f"RUNNING EVALUATION FOR EPSILON = {epsilon}")
         print(f"{'=' * 80}")
         
-        if args.synthesizer in ['privbayes', 'both']:
-            run_evaluation_pipeline('privbayes', args.train_size, args.test_size, epsilon, args.n_trials)
+        # Create results directory
+        results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'results', 
+            f"{dataset_type}_{synthesizer_type}_eps_{epsilon}"))
+        os.makedirs(results_dir, exist_ok=True)
         
-        if args.synthesizer in ['dpctgan', 'both']:
-            run_evaluation_pipeline('dpctgan', args.train_size, args.test_size, epsilon, args.n_trials)
+        # Store metrics for all trials
+        all_statistical_metrics = []
+        all_privacy_metrics = []
+        all_ml_metrics = []
+        
+        for trial in range(n_trials):
+            print(f"\n{'=' * 80}")
+            print(f"RUNNING TRIAL {trial + 1}/{n_trials}")
+            print(f"{'=' * 80}")
+            
+            # Step 1: Load and preprocess data using unified system
+            real_train, real_test, metadata = load_and_preprocess_data(dataset_type, synthesizer_type, train_size, test_size)
+            
+            # Step 2: Test synthesizer
+            synthetic_data = test_synthesizer(synthesizer_type, real_train, metadata, epsilon=epsilon)
+            if synthetic_data is None:
+                print(f"\n❌ Cannot proceed with evaluation due to synthesis failure")
+                continue
+            
+            # Step 3: Run all evaluation metrics
+            statistical_metrics = test_statistical_metrics(real_train, synthetic_data, synthesizer_type, dataset_type, epsilon, trial, n_trials)
+            privacy_metrics = test_privacy_metrics(real_train, synthetic_data, synthesizer_type, dataset_type, epsilon, trial, n_trials)
+            # Use appropriate target column based on dataset type
+            target_column = 'Cover_Type' if dataset_type.lower() == 'covertype' else 'income'
+            ml_metrics = test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, dataset_type, epsilon, target_column=target_column)
+            
+            all_statistical_metrics.append(statistical_metrics)
+            all_privacy_metrics.append(privacy_metrics)
+            if ml_metrics is not None:
+                all_ml_metrics.append(ml_metrics)
+        
+        # Aggregate metrics
+        aggregated_statistical = aggregate_metrics(all_statistical_metrics)
+        aggregated_privacy = aggregate_metrics(all_privacy_metrics)
+        aggregated_ml = aggregate_metrics(all_ml_metrics) if all_ml_metrics else None
+        
+        # Save aggregated metrics
+        import json
+        with open(os.path.join(results_dir, 'aggregated_statistical_metrics.json'), 'w') as f:
+            json.dump(aggregated_statistical, f, indent=4)
+        with open(os.path.join(results_dir, 'aggregated_privacy_metrics.json'), 'w') as f:
+            json.dump(aggregated_privacy, f, indent=4)
+        if aggregated_ml:
+            with open(os.path.join(results_dir, 'aggregated_ml_metrics.json'), 'w') as f:
+                json.dump(aggregated_ml, f, indent=4)
+        
+        print(f"\n{'=' * 80}")
+        print(f"✅ EVALUATION PIPELINE COMPLETED FOR {dataset_type.upper()} - {synthesizer_type.upper()} (Epsilon: {epsilon})")
+        print(f"📊 Results aggregated across {n_trials} trials")
+        print(f"📁 Check 'results/{dataset_type}_{synthesizer_type}_eps_{epsilon}/' directory for outputs")
+        print(f"{'=' * 80}")
+
+def main():
+    """Main function to run the evaluation pipeline."""
+    parser = argparse.ArgumentParser(description='Run synthetic data evaluation pipeline')
+    parser.add_argument('--synthesizer', type=str, default='privbayes',
+                      choices=['privbayes', 'dpctgan'],
+                      help='Type of synthesizer to use (default: privbayes)')
+    parser.add_argument('--dataset', type=str, default='adult',
+                      choices=['adult', 'covertype'],
+                      help='Dataset to use (default: adult)')
+    parser.add_argument('--train-size', type=int, default=1000,
+                      help='Number of training samples to use (default: 1000)')
+    parser.add_argument('--test-size', type=int, default=500,
+                      help='Number of test samples to use (default: 500)')
+    parser.add_argument('--epsilon', type=str, default='1.0',
+                      help='Privacy budget(s) for differential privacy. Can be a single value or comma-separated list (default: 1.0)')
+    parser.add_argument('--n-trials', type=int, default=3,
+                      help='Number of trials to run (default: 3)')
     
-    print(f"\n{'=' * 80}")
-    print("🏆 COMPLETE COMPARISON FINISHED")
-    print("📊 Check results/{synthesizer}_eps_{epsilon}/ directories for detailed outputs")
-    print(f"{'=' * 80}")
+    args = parser.parse_args()
+    
+    # Parse epsilon values
+    try:
+        epsilon_values = [float(eps.strip()) for eps in args.epsilon.split(',')]
+    except ValueError:
+        print("Error: Epsilon values must be comma-separated numbers")
+        return
+    
+    # Run the evaluation pipeline with all epsilon values
+    run_evaluation_pipeline(
+        dataset_type=args.dataset,
+        synthesizer_type=args.synthesizer,
+        train_size=args.train_size,
+        test_size=args.test_size,
+        epsilon_values=epsilon_values,
+        n_trials=args.n_trials
+    )
 
 if __name__ == "__main__":
     main() 
