@@ -58,7 +58,7 @@ def plot_marginal_distributions(
         real_df (pd.DataFrame): DataFrame containing real data
         synth_df (pd.DataFrame): DataFrame containing synthetic data
         columns (List[str]): List of column names to plot
-        save_path (Optional[str]): Path to save the plot. If None, plot is displayed
+        save_path (Optional[str]): Path to save the plot. If None, plot is not saved or displayed
     """
     # Calculate grid dimensions
     n_cols = min(3, len(columns))
@@ -115,12 +115,12 @@ def plot_marginal_distributions(
     # Adjust layout
     plt.tight_layout()
     
-    # Save or show plot
+    # Save plot if path is provided
     if save_path:
         plt.savefig(save_path, bbox_inches='tight', dpi=300)
-        plt.close()
-    else:
-        plt.show()
+    
+    # Close the plot to free memory
+    plt.close()
 
 def plot_correlation_difference(
     real_df: pd.DataFrame,
@@ -133,7 +133,7 @@ def plot_correlation_difference(
     Args:
         real_df (pd.DataFrame): DataFrame containing real data
         synth_df (pd.DataFrame): DataFrame containing synthetic data
-        save_path (Optional[str]): Path to save the plot. If None, plot is displayed
+        save_path (Optional[str]): Path to save the plot. If None, plot is not saved or displayed
         
     Returns:
         float: Frobenius norm of the correlation difference matrix
@@ -185,12 +185,12 @@ def plot_correlation_difference(
     # Adjust layout
     plt.tight_layout()
     
-    # Save or show plot
+    # Save plot if path is provided
     if save_path:
         plt.savefig(save_path, bbox_inches='tight', dpi=300)
-        plt.close()
-    else:
-        plt.show()
+    
+    # Close the plot to free memory
+    plt.close()
     
     return frobenius_norm
 
