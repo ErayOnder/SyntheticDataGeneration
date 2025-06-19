@@ -176,7 +176,6 @@ class MyPrivBayes:
         
         # Generate n_records synthetic rows
         for _ in range(n_records):
-            # Initialize empty dictionary for current record
             record = {}
             
             # Sample each node in traversal order

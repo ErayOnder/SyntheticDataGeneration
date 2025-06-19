@@ -182,7 +182,6 @@ def plot_correlation_difference(
             print(f"Columns with NaN correlations in synthetic data: {nan_cols_synth}")
     
     # Handle NaN values in correlation matrices
-    # Fill NaN values with 0 (no correlation) as a reasonable default
     real_corr_filled = real_corr.fillna(0)
     synth_corr_filled = synth_corr.fillna(0)
     
@@ -309,7 +308,6 @@ def calculate_pmse(
         all_predictions[test_idx] = predictions
     
     # Calculate PMSE
-    # We want predictions to be close to 0.5 (perfect indistinguishability)
     pmse = np.mean((all_predictions - 0.5) ** 2)
     
     return pmse

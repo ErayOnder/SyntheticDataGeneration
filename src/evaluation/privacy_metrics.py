@@ -23,7 +23,6 @@ def count_exact_matches(
     synth_df = synth_df.copy()
     
     # Convert all columns to string type to ensure consistent comparison
-    # This handles potential type mismatches (e.g., int vs float)
     real_df = real_df.astype(str)
     synth_df = synth_df.astype(str)
     
@@ -65,7 +64,6 @@ def calculate_dcr(
     real_df = real_df.copy()
     
     # Calculate Gower distance matrix between synthetic and real data
-    # This will be a matrix of shape (len(synth_df), len(real_df))
     distance_matrix = gower.gower_matrix(synth_df, real_df)
     
     # For each synthetic record, find the minimum distance to any real record

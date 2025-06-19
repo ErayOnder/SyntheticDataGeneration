@@ -68,7 +68,7 @@ class DataTransformer:
                     
                 # Use Bayesian Gaussian Mixture for mode detection
                 gm = BayesianGaussianMixture(
-                    n_components=min(10, len(column_data) // 50 + 1),  # Adaptive number of components
+                    n_components=min(10, len(column_data) // 50 + 1),
                     max_iter=100,
                     random_state=42,
                     tol=1e-3
@@ -86,7 +86,7 @@ class DataTransformer:
                 if n_modes == 0:
                     n_modes = 1
                     means = np.array([column_data.mean()])
-                    stds = np.array([max(column_data.std(), 1e-6)])  # Avoid zero std
+                    stds = np.array([max(column_data.std(), 1e-6)])
                     weights = np.array([1.0])
                 else:
                     # Extract mode parameters
@@ -168,7 +168,7 @@ class DataTransformer:
                     
                     # Normalize value within selected mode
                     scalar = (column_data.iloc[k] - means[selected_mode]) / (4 * stds[selected_mode])
-                    scalar = np.clip(scalar, -1, 1)  # Clip to [-1, 1]
+                    scalar = np.clip(scalar, -1, 1)
                     scalars.append(scalar)
                 
                 # Add scalar values
@@ -328,8 +328,8 @@ class DataSampler:
 
 def gumbel_softmax(logits, tau=1, hard=False, dim=-1):
     """Gumbel softmax activation"""
-    gumbels = -torch.empty_like(logits).exponential_().log()  # ~Gumbel(0,1)
-    gumbels = (logits + gumbels) / tau  # ~Gumbel(logits, tau)
+    gumbels = -torch.empty_like(logits).exponential_().log()
+    gumbels = (logits + gumbels) / tau
     y_soft = gumbels.softmax(dim)
     
     if hard:
@@ -636,7 +636,7 @@ class OpacusDifferentiallyPrivateCTGAN:
         
         # Handle discrete columns (backward compatibility)
         if discrete_columns is None:
-            print("⚠️  No discrete_columns provided - auto-detecting for backward compatibility")
+            print("-> No discrete_columns provided - auto-detecting for backward compatibility")
             discrete_columns = []
             for col in data.columns:
                 if data[col].dtype == 'object':

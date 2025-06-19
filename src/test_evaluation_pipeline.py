@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import pandas as pd
 import numpy as np
 import os
@@ -47,15 +45,15 @@ def load_and_preprocess_data(dataset_type, synthesizer_type, train_size=1000, te
     if dataset_type.lower() == 'adult':
         preprocessor = AdultDataPreprocessor(data_dir=data_dir)
         # Download data if not exists
-        print("📥 Downloading Adult dataset if needed...")
+        print("-> Downloading Adult dataset if needed...")
         preprocessor.download()
         
         # Load data
-        print("📋 Loading Adult dataset...")
+        print("-> Loading Adult dataset...")
         df_train, df_test = preprocessor.load()
         
         # Combine and split to ensure consistent preprocessing
-        print("🔄 Combining and splitting data...")
+        print("-> Combining and splitting data...")
         df_train_combined, df_test_combined = preprocessor.combine_and_split(
             df_train, df_test, test_size=0.3, random_state=42
         )
@@ -63,15 +61,15 @@ def load_and_preprocess_data(dataset_type, synthesizer_type, train_size=1000, te
     elif dataset_type.lower() == 'covertype':
         preprocessor = CovertypeDataPreprocessor(data_dir=data_dir)
         # Download data if not exists
-        print("📥 Downloading Covertype dataset if needed...")
+        print("-> Downloading Covertype dataset if needed...")
         preprocessor.download()
         
         # Load data
-        print("📋 Loading Covertype dataset...")
+        print("-> Loading Covertype dataset...")
         df = preprocessor.load()
         
         # Split into train and test
-        print("🔄 Splitting data...")
+        print("-> Splitting data...")
         df_train_combined, df_test_combined = preprocessor.combine_and_split(
             df, test_size=0.3, random_state=42
         )
@@ -79,17 +77,17 @@ def load_and_preprocess_data(dataset_type, synthesizer_type, train_size=1000, te
         raise ValueError(f"Unsupported dataset type: {dataset_type}")
     
     # Store original data for baseline evaluation
-    print("📊 Storing original data for baseline evaluation...")
+    print("-> Storing original data for baseline evaluation...")
     original_train = df_train_combined.copy()
     original_test = df_test_combined.copy()
     
     # Apply standard preprocessing for baseline evaluation
-    print("⚙️  Applying standard preprocessing for baseline evaluation...")
+    print("-> Applying standard preprocessing for baseline evaluation...")
     standard_train = preprocessor.standard_preprocess(df_train_combined)
     standard_test = preprocessor.standard_preprocess(df_test_combined)
     
     # Use unified preprocessing system for synthesizer-specific preprocessing
-    print(f"⚙️  Preprocessing data for {synthesizer_type}...")
+    print(f"-> Preprocessing data for {synthesizer_type}...")
     df_train_processed, train_metadata = preprocessor.preprocess_for_synthesizer(
         df_train_combined, synthesizer_type
     )
@@ -103,7 +101,7 @@ def load_and_preprocess_data(dataset_type, synthesizer_type, train_size=1000, te
     assert train_metadata == test_metadata, "Train and test preprocessing metadata must match!"
     
     # Take samples for faster testing
-    print("📊 Taking samples for faster testing...")
+    print("-> Taking samples for faster testing...")
     train_sample = df_train_processed.sample(n=min(train_size, len(df_train_processed)), random_state=42)
     test_sample = df_test_processed.sample(n=min(test_size, len(df_test_processed)), random_state=42)
     
@@ -113,13 +111,13 @@ def load_and_preprocess_data(dataset_type, synthesizer_type, train_size=1000, te
     standard_train_sample = standard_train.sample(n=min(train_size, len(standard_train)), random_state=42)
     standard_test_sample = standard_test.sample(n=min(test_size, len(standard_test)), random_state=42)
     
-    print(f"✅ Training sample shape: {train_sample.shape}")
-    print(f"✅ Test sample shape: {test_sample.shape}")
-    print(f"✅ Original training sample shape: {original_train_sample.shape}")
-    print(f"✅ Original test sample shape: {original_test_sample.shape}")
-    print(f"✅ Standard training sample shape: {standard_train_sample.shape}")
-    print(f"✅ Standard test sample shape: {standard_test_sample.shape}")
-    print(f"📋 Preprocessing metadata: {train_metadata}")
+    print(f"-> Training sample shape: {train_sample.shape}")
+    print(f"-> Test sample shape: {test_sample.shape}")
+    print(f"-> Original training sample shape: {original_train_sample.shape}")
+    print(f"-> Original test sample shape: {original_test_sample.shape}")
+    print(f"-> Standard training sample shape: {standard_train_sample.shape}")
+    print(f"-> Standard test sample shape: {standard_test_sample.shape}")
+    print(f"-> Preprocessing metadata: {train_metadata}")
     
     return (train_sample, test_sample, train_metadata, 
             original_train_sample, original_test_sample, 
@@ -143,54 +141,54 @@ def test_synthesizer(synthesizer_type, real_train, preprocessing_metadata, n_syn
     print(f"TESTING {synthesizer_type.upper()} SYNTHESIS (Epsilon: {epsilon})")
     print(f"{'=' * 80}")
     
-    print(f"📊 Real training data shape: {real_train.shape}")
+    print(f"-> Real training data shape: {real_train.shape}")
     
     # Show sample of the data
-    print(f"\n🔍 Sample of {synthesizer_type} training data:")
+    print(f"\n-> Sample of {synthesizer_type} training data:")
     print(real_train.head())
     
-    print(f"\n📈 Data types and unique values:")
+    print(f"\n-> Data types and unique values:")
     for col in real_train.columns:
         unique_count = real_train[col].nunique()
         print(f"   {col}: {unique_count} unique values ({real_train[col].dtype})")
     
     # Initialize synthesizer based on type
     if synthesizer_type.lower() == 'privbayes':
-        print(f"\n🚀 Initializing PrivBayes synthesizer with epsilon={epsilon}...")
+        print(f"\n-> Initializing PrivBayes synthesizer with epsilon={epsilon}...")
         synthesizer = MyPrivBayes(epsilon=epsilon)
         
         # Fit the synthesizer
-        print("🔧 Fitting PrivBayes on training data...")
+        print("-> Fitting PrivBayes on training data...")
         try:
             synthesizer.fit(real_train)
-            print("✅ PrivBayes fitting completed successfully")
+            print("-> PrivBayes fitting completed successfully")
         except Exception as e:
-            print(f"❌ Error during PrivBayes fitting: {str(e)}")
+            print(f"-> Error during PrivBayes fitting: {str(e)}")
             import traceback
             traceback.print_exc()
             return None
             
     elif synthesizer_type.lower() == 'dpctgan':
-        print(f"\n🚀 Initializing DP-CTGAN synthesizer with epsilon={epsilon}...")
+        print(f"\n-> Initializing DP-CTGAN synthesizer with epsilon={epsilon}...")
         synthesizer = OpacusDifferentiallyPrivateCTGAN(
             epsilon=epsilon,
             delta=1e-5,
-            epochs=30,  # Reduced for faster testing
+            epochs=30,
             batch_size=min(250, len(real_train) // 2),
             verbose=True
         )
         
         # Fit the synthesizer - pass discrete columns from unified preprocessing
-        print("🔧 Fitting DP-CTGAN on training data...")
+        print("-> Fitting DP-CTGAN on training data...")
         try:
             discrete_cols = preprocessing_metadata.get('discrete_columns', [])
-            print(f"📋 Using discrete columns from unified preprocessing: {discrete_cols}")
+            print(f"-> Using discrete columns from unified preprocessing: {discrete_cols}")
             
             # Pass discrete columns to ensure consistency with preprocessing
             synthesizer.fit(real_train, discrete_columns=discrete_cols)
-            print("✅ DP-CTGAN fitting completed successfully")
+            print("-> DP-CTGAN fitting completed successfully")
         except Exception as e:
-            print(f"❌ Error during DP-CTGAN fitting: {str(e)}")
+            print(f"-> Error during DP-CTGAN fitting: {str(e)}")
             import traceback
             traceback.print_exc()
             return None
@@ -198,31 +196,31 @@ def test_synthesizer(synthesizer_type, real_train, preprocessing_metadata, n_syn
         raise ValueError(f"Unsupported synthesizer type: {synthesizer_type}")
     
     # Generate synthetic data
-    print(f"🎲 Generating {n_synthetic} synthetic samples...")
+    print(f"-> Generating {n_synthetic} synthetic samples...")
     try:
         if synthesizer_type.lower() == 'privbayes':
             synthetic_data = synthesizer.sample(n_records=n_synthetic)
         else:  # dpctgan
             synthetic_data = synthesizer.sample(n_samples=n_synthetic)
             
-        print(f"✅ Synthetic data generated successfully. Shape: {synthetic_data.shape}")
+        print(f"-> Synthetic data generated successfully. Shape: {synthetic_data.shape}")
         
-        print(f"\n🔍 Sample of synthetic data:")
+        print(f"\n-> Sample of synthetic data:")
         print(synthetic_data.head())
         
         # Verify column consistency
         if set(synthetic_data.columns) != set(real_train.columns):
-            print(f"⚠️  Column mismatch detected!")
+            print(f"-> Column mismatch detected!")
             print(f"   Real columns: {sorted(real_train.columns)}")
             print(f"   Synthetic columns: {sorted(synthetic_data.columns)}")
             # Align columns
             synthetic_data = synthetic_data[real_train.columns]
-            print(f"✅ Columns aligned automatically")
+            print(f"-> Columns aligned automatically")
         
         return synthetic_data
         
     except Exception as e:
-        print(f"❌ Error during synthetic data generation: {str(e)}")
+        print(f"-> Error during synthetic data generation: {str(e)}")
         import traceback
         traceback.print_exc()
         return None
@@ -241,7 +239,7 @@ def test_statistical_metrics(real_train, synthetic_data, synthesizer_type, datas
     metrics = {}
     
     # Test marginal distributions plot
-    print(f"\n1. 📊 Testing marginal distribution plots...")
+    print(f"\n1. -> Testing marginal distribution plots...")
     try:
         # Only save plots for the last trial
         save_path = f"{results_dir}/marginal_distributions.png" if trial_num == total_trials - 1 else None
@@ -252,14 +250,14 @@ def test_statistical_metrics(real_train, synthetic_data, synthesizer_type, datas
             save_path=save_path
         )
         if save_path:
-            print("✅ Marginal distribution plots generated successfully")
+            print("-> Marginal distribution plots generated successfully")
     except Exception as e:
-        print(f"❌ Error in marginal distribution plots: {str(e)}")
+        print(f"-> Error in marginal distribution plots: {str(e)}")
         import traceback
         traceback.print_exc()
     
     # Test correlation difference plot
-    print(f"\n2. 🔗 Testing correlation difference plot...")
+    print(f"\n2. -> Testing correlation difference plot...")
     try:
         # Only save plots for the last trial
         save_path = f"{results_dir}/correlation_difference.png" if trial_num == total_trials - 1 else None
@@ -268,25 +266,25 @@ def test_statistical_metrics(real_train, synthetic_data, synthesizer_type, datas
             synth_df=synthetic_data,
             save_path=save_path
         )
-        print(f"✅ Correlation difference plot generated. Frobenius norm: {corr_diff_norm:.4f}")
+        print(f"-> Correlation difference plot generated. Frobenius norm: {corr_diff_norm:.4f}")
         metrics['correlation_difference_norm'] = float(corr_diff_norm)
     except Exception as e:
-        print(f"❌ Error in correlation difference plot: {str(e)}")
+        print(f"-> Error in correlation difference plot: {str(e)}")
         import traceback
         traceback.print_exc()
     
     # Test PMSE calculation
-    print(f"\n3. 🎯 Testing PMSE calculation...")
+    print(f"\n3. -> Testing PMSE calculation...")
     try:
         pmse_score = calculate_pmse(
             real_df=real_train,
             synth_df=synthetic_data
         )
-        print(f"✅ PMSE calculated successfully. Score: {pmse_score:.4f}")
+        print(f"-> PMSE calculated successfully. Score: {pmse_score:.4f}")
         print(f"   Lower PMSE = better synthetic data quality")
         metrics['pmse_score'] = float(pmse_score)
     except Exception as e:
-        print(f"❌ Error in PMSE calculation: {str(e)}")
+        print(f"-> Error in PMSE calculation: {str(e)}")
         import traceback
         traceback.print_exc()
     
@@ -295,7 +293,7 @@ def test_statistical_metrics(real_train, synthetic_data, synthesizer_type, datas
     metrics_file = os.path.join(results_dir, f'statistical_metrics_trial_{trial_num + 1}.json')
     with open(metrics_file, 'w') as f:
         json.dump(metrics, f, indent=4)
-    print(f"\n💾 Statistical metrics for trial {trial_num + 1} saved to {metrics_file}")
+    print(f"\n-> Statistical metrics for trial {trial_num + 1} saved to {metrics_file}")
     
     return metrics
 
@@ -306,40 +304,40 @@ def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, dat
     print(f"TESTING ML UTILITY (TSTR) - {dataset_type.upper()} - {synthesizer_type.upper()} (Epsilon: {epsilon})")
     print(f"{'=' * 80}")
     
-    print(f"🧠 Testing TSTR evaluation...")
-    print(f"   📊 Synthetic training data shape: {synthetic_data.shape}")
-    print(f"   📊 Real training data shape: {real_train.shape}")
-    print(f"   📊 Real test data shape: {real_test.shape}")
-    print(f"   🎯 Target column: {target_column}")
+    print(f"-> Testing TSTR evaluation...")
+    print(f"    -> Synthetic training data shape: {synthetic_data.shape}")
+    print(f"    -> Real training data shape: {real_train.shape}")
+    print(f"    -> Real test data shape: {real_test.shape}")
+    print(f"    -> Target column: {target_column}")
     
     # Use standard preprocessed data for baseline evaluation if provided
     if standard_train is not None and standard_test is not None:
         baseline_train = standard_train
         baseline_test = standard_test
-        print("✅ Using standard preprocessed data for baseline evaluation")
+        print("-> Using standard preprocessed data for baseline evaluation")
     else:
         baseline_train = real_train
         baseline_test = real_test
-        print("⚠️  Using synthesizer-specific preprocessed data for baseline evaluation")
+        print("-> Using synthesizer-specific preprocessed data for baseline evaluation")
     
     # Check if both datasets have the target column
     if target_column not in synthetic_data.columns:
-        print(f"❌ Target column '{target_column}' not found in synthetic data")
+        print(f"-> Target column '{target_column}' not found in synthetic data")
         print(f"   Available columns: {list(synthetic_data.columns)}")
         return None
     if target_column not in baseline_test.columns:
-        print(f"❌ Target column '{target_column}' not found in test data")
+        print(f"-> Target column '{target_column}' not found in test data")
         print(f"   Available columns: {list(baseline_test.columns)}")
         return None
     
     # Check if datasets have same columns
     if set(synthetic_data.columns) != set(baseline_test.columns):
-        print("❌ Column mismatch between synthetic and test data")
+        print("-> Column mismatch between synthetic and test data")
         print(f"   Synthetic columns: {sorted(synthetic_data.columns)}")
         print(f"   Test columns: {sorted(baseline_test.columns)}")
         return None
     
-    print("✅ Column consistency verified!")
+    print("-> Column consistency verified!")
     
     # Create results directory with dataset and epsilon in path
     results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'results', 
@@ -349,52 +347,52 @@ def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, dat
     metrics = {}
     
     # 1. BASELINE: Train on Real, Test on Real (using standard preprocessing)
-    print(f"\n📊 Running BASELINE evaluation: Train on Real, Test on Real...")
+    print(f"\n-> Running BASELINE evaluation: Train on Real, Test on Real...")
     try:
         baseline_results = run_tstr_evaluation(
             synth_train_df=baseline_train,  # Use standard preprocessed real data for training
             real_test_df=baseline_test,     # Use standard preprocessed real data for testing
             target_column=target_column
         )
-        print("✅ Baseline evaluation completed successfully")
-        print(f"\n📈 BASELINE Results (Train on Real, Test on Real):")
+        print("-> Baseline evaluation completed successfully")
+        print(f"\n-> BASELINE Results (Train on Real, Test on Real):")
         print(baseline_results.to_string(index=False))
         
         # Save baseline results
         baseline_results.to_csv(f"{results_dir}/baseline_tstr_results.csv", index=False)
-        print(f"💾 Baseline results saved to {results_dir}/baseline_tstr_results.csv")
+        print(f"-> Baseline results saved to {results_dir}/baseline_tstr_results.csv")
         
         # Store baseline metrics
         metrics['baseline'] = baseline_results.set_index('Model')['Accuracy'].to_dict()
         
     except Exception as e:
-        print(f"❌ Error in baseline evaluation: {str(e)}")
+        print(f"-> Error in baseline evaluation: {str(e)}")
         import traceback
         traceback.print_exc()
         baseline_results = None
     
     # 2. MAIN EVALUATION: Train on Synthetic, Test on Real (using synthetic data in natural format)
-    print(f"\n📊 Running MAIN evaluation: Train on Synthetic, Test on Real...")
+    print(f"\n-> Running MAIN evaluation: Train on Synthetic, Test on Real...")
     try:
         tstr_results = run_tstr_evaluation(
             synth_train_df=synthetic_data,  # Use synthetic data in its natural format
             real_test_df=baseline_test,     # Use standard preprocessed real data for testing
             target_column=target_column
         )
-        print("✅ TSTR evaluation completed successfully")
-        print(f"\n📈 TSTR Results (Train on Synthetic, Test on Real):")
+        print("-> TSTR evaluation completed successfully")
+        print(f"\n-> TSTR Results (Train on Synthetic, Test on Real):")
         print(tstr_results.to_string(index=False))
         
         # Save main results
         tstr_results.to_csv(f"{results_dir}/tstr_results.csv", index=False)
-        print(f"💾 TSTR results saved to {results_dir}/tstr_results.csv")
+        print(f"-> TSTR results saved to {results_dir}/tstr_results.csv")
         
         # Store TSTR metrics
         metrics['tstr'] = tstr_results.set_index('Model')['Accuracy'].to_dict()
         
         # 3. COMPARISON: Show utility retention
         if baseline_results is not None:
-            print(f"\n📊 UTILITY RETENTION COMPARISON:")
+            print(f"\n-> UTILITY RETENTION COMPARISON:")
             print("=" * 50)
             retention_metrics = {}
             for _, baseline_row in baseline_results.iterrows():
@@ -409,7 +407,7 @@ def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, dat
             metrics['retention'] = retention_metrics
         
     except Exception as e:
-        print(f"❌ Error in TSTR evaluation: {str(e)}")
+        print(f"-> Error in TSTR evaluation: {str(e)}")
         import traceback
         traceback.print_exc()
         return None
@@ -430,25 +428,25 @@ def test_privacy_metrics(real_train, synthetic_data, synthesizer_type, dataset_t
     metrics = {}
     
     # Test exact matches
-    print(f"\n1. 🔒 Testing exact matches count...")
+    print(f"\n1. -> Testing exact matches count...")
     try:
         exact_matches = count_exact_matches(
             real_df=real_train,
             synth_df=synthetic_data
         )
         match_percentage = (exact_matches / len(synthetic_data)) * 100
-        print(f"✅ Exact matches counted successfully")
-        print(f"   🔢 Number of exact matches: {exact_matches}")
-        print(f"   📊 Percentage of synthetic data that are exact matches: {match_percentage:.2f}%")
+        print(f"-> Exact matches counted successfully")
+        print(f"    -> Number of exact matches: {exact_matches}")
+        print(f"    -> Percentage of synthetic data that are exact matches: {match_percentage:.2f}%")
         metrics['exact_matches'] = int(exact_matches)
         metrics['exact_matches_percentage'] = float(match_percentage)
     except Exception as e:
-        print(f"❌ Error in counting exact matches: {str(e)}")
+        print(f"-> Error in counting exact matches: {str(e)}")
         import traceback
         traceback.print_exc()
     
     # Test DCR calculation
-    print(f"\n2. 📏 Testing DCR (Distance to Closest Record)...")
+    print(f"\n2. -> Testing DCR (Distance to Closest Record)...")
     try:
         # Ensure both datasets have the same column order
         synth_aligned = synthetic_data[real_train.columns]
@@ -457,17 +455,17 @@ def test_privacy_metrics(real_train, synthetic_data, synthesizer_type, dataset_t
             synth_df=synth_aligned,
             real_df=real_train
         )
-        print("✅ DCR calculated successfully")
-        print(f"   📊 Mean distance: {dcr_stats['mean']:.4f}")
-        print(f"   📊 Min distance: {dcr_stats['min']:.4f}")
-        print(f"   📊 Max distance: {dcr_stats['max']:.4f}")
+        print("-> DCR calculated successfully")
+        print(f"    -> Mean distance: {dcr_stats['mean']:.4f}")
+        print(f"    -> Min distance: {dcr_stats['min']:.4f}")
+        print(f"    -> Max distance: {dcr_stats['max']:.4f}")
         metrics['dcr_stats'] = {
             'mean': float(dcr_stats['mean']),
             'min': float(dcr_stats['min']),
             'max': float(dcr_stats['max'])
         }
     except Exception as e:
-        print(f"❌ Error in DCR calculation: {str(e)}")
+        print(f"-> Error in DCR calculation: {str(e)}")
         import traceback
         traceback.print_exc()
     
@@ -476,7 +474,7 @@ def test_privacy_metrics(real_train, synthetic_data, synthesizer_type, dataset_t
     metrics_file = os.path.join(results_dir, f'privacy_metrics_trial_{trial_num + 1}.json')
     with open(metrics_file, 'w') as f:
         json.dump(metrics, f, indent=4)
-    print(f"\n💾 Privacy metrics for trial {trial_num + 1} saved to {metrics_file}")
+    print(f"\n-> Privacy metrics for trial {trial_num + 1} saved to {metrics_file}")
     
     return metrics
 
@@ -539,14 +537,14 @@ def run_evaluation_pipeline(dataset_type, synthesizer_type, train_size=1000, tes
         epsilon_values (list): List of privacy budgets for differential privacy
         n_trials (int): Number of trials to run
     """
-    print(f"🚀 UNIFIED EVALUATION PIPELINE")
+    print(f"-> UNIFIED EVALUATION PIPELINE")
     print(f"{'=' * 80}")
-    print(f"📊 Dataset: {dataset_type.upper()}")
-    print(f"🔧 Synthesizer: {synthesizer_type.upper()}")
-    print(f"🔒 Epsilon values: {epsilon_values}")
-    print(f"📊 Training samples: {train_size}")
-    print(f"📊 Test samples: {test_size}")
-    print(f"🔄 Number of trials: {n_trials}")
+    print(f"-> Dataset: {dataset_type.upper()}")
+    print(f"-> Synthesizer: {synthesizer_type.upper()}")
+    print(f"-> Epsilon values: {epsilon_values}")
+    print(f"-> Training samples: {train_size}")
+    print(f"-> Test samples: {test_size}")
+    print(f"-> Number of trials: {n_trials}")
     print(f"{'=' * 80}")
     
     # Run evaluation for each epsilon value
@@ -576,7 +574,7 @@ def run_evaluation_pipeline(dataset_type, synthesizer_type, train_size=1000, tes
             # Step 2: Test synthesizer
             synthetic_data = test_synthesizer(synthesizer_type, real_train, metadata, epsilon=epsilon)
             if synthetic_data is None:
-                print(f"\n❌ Cannot proceed with evaluation due to synthesis failure")
+                print(f"\n-> Cannot proceed with evaluation due to synthesis failure")
                 continue
             
             # Step 3: Run all evaluation metrics
@@ -607,9 +605,9 @@ def run_evaluation_pipeline(dataset_type, synthesizer_type, train_size=1000, tes
                 json.dump(aggregated_ml, f, indent=4)
         
         print(f"\n{'=' * 80}")
-        print(f"✅ EVALUATION PIPELINE COMPLETED FOR {dataset_type.upper()} - {synthesizer_type.upper()} (Epsilon: {epsilon})")
-        print(f"📊 Results aggregated across {n_trials} trials")
-        print(f"📁 Check 'results/{dataset_type}_{synthesizer_type}_eps_{epsilon}/' directory for outputs")
+        print(f"-> EVALUATION PIPELINE COMPLETED FOR {dataset_type.upper()} - {synthesizer_type.upper()} (Epsilon: {epsilon})")
+        print(f"-> Results aggregated across {n_trials} trials")
+        print(f"-> Check 'results/{dataset_type}_{synthesizer_type}_eps_{epsilon}/' directory for outputs")
         print(f"{'=' * 80}")
 
 def main():

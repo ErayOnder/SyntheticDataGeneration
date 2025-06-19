@@ -27,7 +27,6 @@ def normalize_mixed_types(real_df: pd.DataFrame, synth_df: pd.DataFrame) -> tupl
     for col in real_df.columns:
         real_col_type = real_df[col].dtype
         
-        # Check if column should be categorical or numerical
         if real_col_type in ['object', 'category'] or real_df[col].nunique() <= 20:
             # Treat as categorical - convert everything to strings
             real_normalized[col] = real_normalized[col].astype(str)

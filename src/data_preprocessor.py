@@ -62,7 +62,6 @@ class AdultDataPreprocessor:
             tuple: (df_train, df_test) containing the training and test DataFrames
         """
         df_train = pd.read_csv(self.data_path, header=None, names=self.df_columns, skipinitialspace=True)
-        # Skip the first line in test set (comment/header)
         df_test = pd.read_csv(self.test_path, header=None, names=self.df_columns, skiprows=1, skipinitialspace=True)
         # Remove trailing period in income column for test set
         df_test['income'] = df_test['income'].astype(str).str.replace('.', '', regex=False).str.strip()
@@ -196,8 +195,6 @@ class AdultDataPreprocessor:
             df_processed = df_processed.drop('education-num', axis=1)
         
         # Identify discrete (categorical) columns for DP-CTGAN
-        # DP-CTGAN can handle mixed types, so we keep object columns as categorical
-        # and numerical columns as numerical
         discrete_columns = []
         
         for col in df_processed.columns:
@@ -205,13 +202,11 @@ class AdultDataPreprocessor:
                 discrete_columns.append(col)
                 # Clean categorical columns - ensure consistent string format
                 df_processed[col] = df_processed[col].astype(str)
-            # Keep numerical columns as numerical (age, fnlwgt, capital-gain, etc.)
+            # Keep numerical columns as numerical
         
-        # Optional: Reduce cardinality of high-cardinality categorical columns
-        # This helps DP-CTGAN training stability
+        # Reduce cardinality of high-cardinality categorical columns
         if 'native-country' in df_processed.columns:
             country_counts = df_processed['native-country'].value_counts()
-            # Keep top 5 countries, group rest as 'Other'
             top_countries = country_counts.head(5).index.tolist()
             df_processed['native-country'] = df_processed['native-country'].apply(
                 lambda x: x if x in top_countries else 'Other'
