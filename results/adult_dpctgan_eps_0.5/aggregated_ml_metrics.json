@@ -1,0 +1,62 @@
+{
+    "tstr": {
+        "Logistic Regression": {
+            "mean": 0.5025,
+            "std": 0.265,
+            "min": 0.2375,
+            "max": 0.7675
+        },
+        "Random Forest": {
+            "mean": 0.5,
+            "std": 0.276,
+            "min": 0.224,
+            "max": 0.776
+        },
+        "Neural Network": {
+            "mean": 0.50075,
+            "std": 0.27525,
+            "min": 0.2255,
+            "max": 0.776
+        }
+    },
+    "baseline": {
+        "Logistic Regression": {
+            "mean": 0.859,
+            "std": 0.0,
+            "min": 0.859,
+            "max": 0.859
+        },
+        "Random Forest": {
+            "mean": 0.8605,
+            "std": 0.0,
+            "min": 0.8605,
+            "max": 0.8605
+        },
+        "Neural Network": {
+            "mean": 0.8305,
+            "std": 0.0,
+            "min": 0.8305,
+            "max": 0.8305
+        }
+    },
+    "retention": {
+        "Logistic Regression": {
+            "mean": 58.498253783469146,
+            "std": 30.849825378346914,
+            "min": 27.64842840512223,
+            "max": 89.34807916181606
+        },
+        "Random Forest": {
+            "mean": 58.105752469494476,
+            "std": 32.074375363160954,
+            "min": 26.031377106333526,
+            "max": 90.18012783265543
+        },
+        "Neural Network": {
+            "mean": 60.295003010234794,
+            "std": 33.142685129440096,
+            "min": 27.1523178807947,
+            "max": 93.43768813967489
+        }
+    }
+}
