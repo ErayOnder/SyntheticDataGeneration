@@ -256,6 +256,63 @@ class AdultDataPreprocessor:
             raise ValueError(f"Unsupported synthesizer type: {synthesizer_type}. "
                            f"Supported types: 'privbayes', 'dpctgan'")
 
+    def standard_preprocess(self, df):
+        """
+        Standard preprocessing for baseline evaluation.
+        
+        This method preprocesses the data in a standard way that preserves
+        the original data types and structure, suitable for calculating
+        fair baseline performance that can be compared across different synthesizers.
+        
+        This preprocessing:
+        1. Handles missing values consistently
+        2. Keeps numerical columns as numerical
+        3. Keeps categorical columns as categorical
+        4. Drops redundant columns
+        5. Ensures consistent data types for ML evaluation
+        
+        Args:
+            df (pd.DataFrame): Input DataFrame to preprocess
+            
+        Returns:
+            pd.DataFrame: Standard preprocessed DataFrame suitable for baseline evaluation
+        """
+        # Create a copy to avoid modifying the original
+        df_processed = df.copy()
+        
+        # Replace '?' with NaN and trim whitespace
+        for col in df_processed.columns:
+            df_processed[col] = df_processed[col].replace('?', np.nan)
+            if df_processed[col].dtype == 'object':
+                df_processed[col] = df_processed[col].str.strip()
+        
+        # Handle missing values for specific columns
+        cat_missing_cols = ['workclass', 'occupation', 'native-country']
+        for col in cat_missing_cols:
+            if col in df_processed.columns:
+                df_processed[col] = df_processed[col].fillna('Unknown')
+        
+        # Drop education-num as it's redundant with education
+        if 'education-num' in df_processed.columns:
+            df_processed = df_processed.drop('education-num', axis=1)
+        
+        # Ensure numerical columns are numeric
+        numerical_cols = ['age', 'fnlwgt', 'capital-gain', 'capital-loss', 'hours-per-week']
+        for col in numerical_cols:
+            if col in df_processed.columns:
+                df_processed[col] = pd.to_numeric(df_processed[col], errors='coerce')
+                # Fill NaN with median for numerical columns
+                df_processed[col] = df_processed[col].fillna(df_processed[col].median())
+        
+        # Ensure categorical columns are strings
+        categorical_cols = ['workclass', 'education', 'marital-status', 'occupation', 
+                           'relationship', 'race', 'sex', 'native-country', 'income']
+        for col in categorical_cols:
+            if col in df_processed.columns:
+                df_processed[col] = df_processed[col].astype(str)
+        
+        return df_processed
+
     def get_preprocessing_info(self, synthesizer_type):
         """
         Get information about the preprocessing applied for a specific synthesizer.
@@ -511,6 +568,86 @@ class CovertypeDataPreprocessor:
             return processed_df, metadata
         else:
             raise ValueError(f"Unsupported synthesizer type: {synthesizer_type}")
+        
+    def standard_preprocess(self, df):
+        """
+        Standard preprocessing for baseline evaluation.
+        
+        This method preprocesses the data in a standard way that preserves
+        the original data types and structure, suitable for calculating
+        fair baseline performance that can be compared across different synthesizers.
+        
+        This preprocessing:
+        1. Handles missing values consistently
+        2. Keeps numerical columns as numerical
+        3. Keeps categorical columns as categorical
+        4. Ensures consistent data types for ML evaluation
+        
+        Args:
+            df (pd.DataFrame): Input DataFrame to preprocess
+            
+        Returns:
+            pd.DataFrame: Standard preprocessed DataFrame suitable for baseline evaluation
+        """
+        # Create a copy to avoid modifying the original
+        df_processed = df.copy()
+        
+        # Identify numerical columns (first 10 columns)
+        numerical_cols = self.df_columns[:10]
+        
+        # Identify discrete columns (Wilderness_Area, Soil_Type, and Cover_Type)
+        discrete_columns = []
+        
+        # Add Wilderness Area columns (4 columns)
+        discrete_columns.extend([f'Wilderness_Area_{i+1}' for i in range(4)])
+        
+        # Add Soil Type columns (40 columns)
+        discrete_columns.extend([f'Soil_Type_{i+1}' for i in range(40)])
+        
+        # Add target column
+        discrete_columns.append('Cover_Type')
+        
+        # Ensure numerical columns are float type
+        for col in numerical_cols:
+            df_processed[col] = df_processed[col].astype(float)
+        
+        # Ensure discrete columns are int type
+        for col in discrete_columns:
+            df_processed[col] = df_processed[col].astype(int)
+        
+        return df_processed
+
+    def get_preprocessing_info(self, synthesizer_type):
+        """
+        Get information about the preprocessing applied for a specific synthesizer.
+        
+        This method provides metadata about the preprocessing steps, which is useful
+        for ensuring consistency when preprocessing test data for evaluation.
+        
+        Args:
+            synthesizer_type (str): Type of synthesizer ('privbayes' or 'dpctgan')
+            
+        Returns:
+            dict: Dictionary containing preprocessing information
+        """
+        if synthesizer_type.lower() == 'privbayes':
+            return {
+                'missing_strategy': 'fillna_unknown',
+                'discretization': 'quantile_based',
+                'cardinality_reduction': True,
+                'output_format': 'all_categorical_strings',
+                'dropped_columns': ['education-num']
+            }
+        elif synthesizer_type.lower() == 'dpctgan':
+            return {
+                'missing_strategy': 'fillna_unknown',
+                'discretization': 'none',
+                'cardinality_reduction': True,
+                'output_format': 'mixed_types',
+                'dropped_columns': ['education-num']
+            }
+        else:
+            raise ValueError(f"Unsupported synthesizer type: {synthesizer_type}")
 
 if __name__ == "__main__":
     # Initialize preprocessor and download data
@@ -555,6 +692,13 @@ if __name__ == "__main__":
     print("   PrivBayes info:", preprocessor.get_preprocessing_info('privbayes'))
     print("   DP-CTGAN info:", preprocessor.get_preprocessing_info('dpctgan'))
     
+    print("\n5. Testing standard preprocessing for baseline evaluation:")
+    df_standard = preprocessor.standard_preprocess(df_sample)
+    print(f"   Standard preprocessed shape: {df_standard.shape}")
+    print("   Data types after standard preprocessing:")
+    for col in df_standard.columns[:5]:
+        print(f"     {col}: {df_standard[col].dtype} (sample: {df_standard[col].iloc[0]})")
+    
     print("\n" + "=" * 80)
     print("COVERTYPE DATASET TEST")
     print("=" * 80)
@@ -597,13 +741,26 @@ if __name__ == "__main__":
     for col in discrete_cols[:5]:
         print(f"     {col}: {df_covertype_dpctgan[col].dtype} (sample: {df_covertype_dpctgan[col].iloc[0]})")
     
-    print("\n5. Column type distribution:")
+    print("\n5. Testing standard preprocessing for baseline evaluation:")
+    df_covertype_standard = covertype_preprocessor.standard_preprocess(df_covertype_sample)
+    print(f"   Standard preprocessed shape: {df_covertype_standard.shape}")
+    print("   Data types after standard preprocessing:")
+    print("   Numerical columns (first 5):")
+    for col in df_covertype_standard.columns[:5]:
+        print(f"     {col}: {df_covertype_standard[col].dtype} (sample: {df_covertype_standard[col].iloc[0]})")
+    
+    print("   Discrete columns (first 5):")
+    discrete_cols_standard = [f'Wilderness_Area_{i+1}' for i in range(4)] + [f'Soil_Type_{i+1}' for i in range(40)] + ['Cover_Type']
+    for col in discrete_cols_standard[:5]:
+        print(f"     {col}: {df_covertype_standard[col].dtype} (sample: {df_covertype_standard[col].iloc[0]})")
+    
+    print("\n6. Column type distribution:")
     numerical_cols = [col for col in df_covertype_dpctgan.columns if col not in discrete_cols]
     print(f"   Numerical columns: {len(numerical_cols)}")
     print(f"   Discrete columns: {len(discrete_cols)}")
     
     # Verify discrete columns are integers
-    print("\n6. Discrete column type verification:")
+    print("\n7. Discrete column type verification:")
     non_int_discrete = [col for col in discrete_cols if df_covertype_dpctgan[col].dtype != 'int64']
     if non_int_discrete:
         print(f"   WARNING: Found {len(non_int_discrete)} discrete columns that are not integers:")
@@ -613,5 +770,5 @@ if __name__ == "__main__":
         print("   All discrete columns are properly converted to integers")
     
     print("\n" + "=" * 80)
-    print("COVERTYPE PREPROCESSING SYSTEM READY FOR PIPELINE!")
+    print("STANDARD PREPROCESSING METHODS READY FOR BASELINE EVALUATION!")
     print("=" * 80)

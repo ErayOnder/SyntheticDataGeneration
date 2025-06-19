@@ -1,0 +1,4 @@
+Model,Accuracy,F1-Score
+Logistic Regression,0.491,0.3455
+Random Forest,0.493,0.3479
+Neural Network,0.43,0.3741

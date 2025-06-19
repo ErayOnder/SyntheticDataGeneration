@@ -833,7 +833,8 @@ class OpacusDifferentiallyPrivateCTGAN:
                 target_discrete = cond_vec[:, cond_start:cond_start + n_categories]
                 
                 # Calculate cross-entropy loss
-                loss = nn.functional.cross_entropy(fake_discrete, target_discrete)
+                target_indices = torch.argmax(target_discrete, dim=1)
+                loss = nn.functional.cross_entropy(fake_discrete, target_indices)
                 return loss
             
             if info['type'] == 'discrete':
