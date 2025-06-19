@@ -127,4 +127,4 @@ test_results/
 *.png
 *.pdf
 *.svg
-.DS_Store results/
+.DS_Store
