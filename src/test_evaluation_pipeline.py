@@ -35,7 +35,7 @@ def load_and_preprocess_data(dataset_type, synthesizer_type, train_size=1000, te
         test_size (int): Number of test samples to use
         
     Returns:
-        tuple: (real_train, real_test, preprocessing_metadata)
+        tuple: (real_train, real_test, preprocessing_metadata, original_train, original_test, standard_train, standard_test)
     """
     print(f"=" * 80)
     print(f"LOADING AND PREPROCESSING {dataset_type.upper()} DATA FOR {synthesizer_type.upper()}")
@@ -78,7 +78,17 @@ def load_and_preprocess_data(dataset_type, synthesizer_type, train_size=1000, te
     else:
         raise ValueError(f"Unsupported dataset type: {dataset_type}")
     
-    # Use unified preprocessing system
+    # Store original data for baseline evaluation
+    print("📊 Storing original data for baseline evaluation...")
+    original_train = df_train_combined.copy()
+    original_test = df_test_combined.copy()
+    
+    # Apply standard preprocessing for baseline evaluation
+    print("⚙️  Applying standard preprocessing for baseline evaluation...")
+    standard_train = preprocessor.standard_preprocess(df_train_combined)
+    standard_test = preprocessor.standard_preprocess(df_test_combined)
+    
+    # Use unified preprocessing system for synthesizer-specific preprocessing
     print(f"⚙️  Preprocessing data for {synthesizer_type}...")
     df_train_processed, train_metadata = preprocessor.preprocess_for_synthesizer(
         df_train_combined, synthesizer_type
@@ -97,11 +107,23 @@ def load_and_preprocess_data(dataset_type, synthesizer_type, train_size=1000, te
     train_sample = df_train_processed.sample(n=min(train_size, len(df_train_processed)), random_state=42)
     test_sample = df_test_processed.sample(n=min(test_size, len(df_test_processed)), random_state=42)
     
+    # Also take corresponding samples from original and standard data
+    original_train_sample = original_train.sample(n=min(train_size, len(original_train)), random_state=42)
+    original_test_sample = original_test.sample(n=min(test_size, len(original_test)), random_state=42)
+    standard_train_sample = standard_train.sample(n=min(train_size, len(standard_train)), random_state=42)
+    standard_test_sample = standard_test.sample(n=min(test_size, len(standard_test)), random_state=42)
+    
     print(f"✅ Training sample shape: {train_sample.shape}")
     print(f"✅ Test sample shape: {test_sample.shape}")
+    print(f"✅ Original training sample shape: {original_train_sample.shape}")
+    print(f"✅ Original test sample shape: {original_test_sample.shape}")
+    print(f"✅ Standard training sample shape: {standard_train_sample.shape}")
+    print(f"✅ Standard test sample shape: {standard_test_sample.shape}")
     print(f"📋 Preprocessing metadata: {train_metadata}")
     
-    return train_sample, test_sample, train_metadata
+    return (train_sample, test_sample, train_metadata, 
+            original_train_sample, original_test_sample, 
+            standard_train_sample, standard_test_sample)
 
 def test_synthesizer(synthesizer_type, real_train, preprocessing_metadata, n_synthetic=800, epsilon=1.0):
     """
@@ -277,7 +299,8 @@ def test_statistical_metrics(real_train, synthetic_data, synthesizer_type, datas
     
     return metrics
 
-def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, dataset_type, epsilon, target_column='income'):
+def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, dataset_type, epsilon, 
+                   standard_train=None, standard_test=None, target_column='income'):
     """Test ML utility evaluation (TSTR) with proper preprocessing consistency."""
     print(f"\n{'=' * 80}")
     print(f"TESTING ML UTILITY (TSTR) - {dataset_type.upper()} - {synthesizer_type.upper()} (Epsilon: {epsilon})")
@@ -289,24 +312,34 @@ def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, dat
     print(f"   📊 Real test data shape: {real_test.shape}")
     print(f"   🎯 Target column: {target_column}")
     
+    # Use standard preprocessed data for baseline evaluation if provided
+    if standard_train is not None and standard_test is not None:
+        baseline_train = standard_train
+        baseline_test = standard_test
+        print("✅ Using standard preprocessed data for baseline evaluation")
+    else:
+        baseline_train = real_train
+        baseline_test = real_test
+        print("⚠️  Using synthesizer-specific preprocessed data for baseline evaluation")
+    
     # Check if both datasets have the target column
     if target_column not in synthetic_data.columns:
         print(f"❌ Target column '{target_column}' not found in synthetic data")
         print(f"   Available columns: {list(synthetic_data.columns)}")
         return None
-    if target_column not in real_test.columns:
-        print(f"❌ Target column '{target_column}' not found in real test data")
-        print(f"   Available columns: {list(real_test.columns)}")
+    if target_column not in baseline_test.columns:
+        print(f"❌ Target column '{target_column}' not found in test data")
+        print(f"   Available columns: {list(baseline_test.columns)}")
         return None
     
-    # Check if datasets have same columns (this should be guaranteed by unified preprocessing)
-    if set(synthetic_data.columns) != set(real_test.columns):
+    # Check if datasets have same columns
+    if set(synthetic_data.columns) != set(baseline_test.columns):
         print("❌ Column mismatch between synthetic and test data")
         print(f"   Synthetic columns: {sorted(synthetic_data.columns)}")
-        print(f"   Test columns: {sorted(real_test.columns)}")
+        print(f"   Test columns: {sorted(baseline_test.columns)}")
         return None
     
-    print("✅ Column consistency verified - unified preprocessing working correctly!")
+    print("✅ Column consistency verified!")
     
     # Create results directory with dataset and epsilon in path
     results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'results', 
@@ -315,12 +348,12 @@ def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, dat
     
     metrics = {}
     
-    # 1. BASELINE: Train on Real, Test on Real
+    # 1. BASELINE: Train on Real, Test on Real (using standard preprocessing)
     print(f"\n📊 Running BASELINE evaluation: Train on Real, Test on Real...")
     try:
         baseline_results = run_tstr_evaluation(
-            synth_train_df=real_train,  # Use real data for training
-            real_test_df=real_test,
+            synth_train_df=baseline_train,  # Use standard preprocessed real data for training
+            real_test_df=baseline_test,     # Use standard preprocessed real data for testing
             target_column=target_column
         )
         print("✅ Baseline evaluation completed successfully")
@@ -340,12 +373,12 @@ def test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, dat
         traceback.print_exc()
         baseline_results = None
     
-    # 2. MAIN EVALUATION: Train on Synthetic, Test on Real
+    # 2. MAIN EVALUATION: Train on Synthetic, Test on Real (using synthetic data in natural format)
     print(f"\n📊 Running MAIN evaluation: Train on Synthetic, Test on Real...")
     try:
         tstr_results = run_tstr_evaluation(
-            synth_train_df=synthetic_data,
-            real_test_df=real_test,
+            synth_train_df=synthetic_data,  # Use synthetic data in its natural format
+            real_test_df=baseline_test,     # Use standard preprocessed real data for testing
             target_column=target_column
         )
         print("✅ TSTR evaluation completed successfully")
@@ -538,7 +571,7 @@ def run_evaluation_pipeline(dataset_type, synthesizer_type, train_size=1000, tes
             print(f"{'=' * 80}")
             
             # Step 1: Load and preprocess data using unified system
-            real_train, real_test, metadata = load_and_preprocess_data(dataset_type, synthesizer_type, train_size, test_size)
+            real_train, real_test, metadata, original_train, original_test, standard_train, standard_test = load_and_preprocess_data(dataset_type, synthesizer_type, train_size, test_size)
             
             # Step 2: Test synthesizer
             synthetic_data = test_synthesizer(synthesizer_type, real_train, metadata, epsilon=epsilon)
@@ -551,7 +584,7 @@ def run_evaluation_pipeline(dataset_type, synthesizer_type, train_size=1000, tes
             privacy_metrics = test_privacy_metrics(real_train, synthetic_data, synthesizer_type, dataset_type, epsilon, trial, n_trials)
             # Use appropriate target column based on dataset type
             target_column = 'Cover_Type' if dataset_type.lower() == 'covertype' else 'income'
-            ml_metrics = test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, dataset_type, epsilon, target_column=target_column)
+            ml_metrics = test_ml_utility(synthetic_data, real_test, real_train, synthesizer_type, dataset_type, epsilon, standard_train, standard_test, target_column=target_column)
             
             all_statistical_metrics.append(statistical_metrics)
             all_privacy_metrics.append(privacy_metrics)

@@ -153,15 +153,49 @@ def plot_correlation_difference(
             real_df[col] = real_df[col].map(cat_map)
             synth_df[col] = synth_df[col].map(cat_map)
     
+    # Check for constant columns that might cause correlation issues
+    constant_cols_real = [col for col in real_df.columns if real_df[col].nunique() <= 1]
+    constant_cols_synth = [col for col in synth_df.columns if synth_df[col].nunique() <= 1]
+    
+    if constant_cols_real or constant_cols_synth:
+        print(f"Warning: Found constant columns in real data: {constant_cols_real}")
+        print(f"Warning: Found constant columns in synthetic data: {constant_cols_synth}")
+    
     # Compute correlation matrices
     real_corr = real_df.corr(method='pearson')
     synth_corr = synth_df.corr(method='pearson')
     
+    # Check for NaN values in correlation matrices
+    real_nan_count = real_corr.isna().sum().sum()
+    synth_nan_count = synth_corr.isna().sum().sum()
+    
+    if real_nan_count > 0 or synth_nan_count > 0:
+        print(f"Warning: Found {real_nan_count} NaN values in real correlation matrix")
+        print(f"Warning: Found {synth_nan_count} NaN values in synthetic correlation matrix")
+        
+        # Show which columns have NaN correlations
+        if real_nan_count > 0:
+            nan_cols_real = real_corr.columns[real_corr.isna().any()].tolist()
+            print(f"Columns with NaN correlations in real data: {nan_cols_real}")
+        if synth_nan_count > 0:
+            nan_cols_synth = synth_corr.columns[synth_corr.isna().any()].tolist()
+            print(f"Columns with NaN correlations in synthetic data: {nan_cols_synth}")
+    
+    # Handle NaN values in correlation matrices
+    # Fill NaN values with 0 (no correlation) as a reasonable default
+    real_corr_filled = real_corr.fillna(0)
+    synth_corr_filled = synth_corr.fillna(0)
+    
     # Calculate absolute difference matrix
-    diff_matrix = np.abs(real_corr - synth_corr)
+    diff_matrix = np.abs(real_corr_filled - synth_corr_filled)
     
     # Calculate Frobenius norm
     frobenius_norm = float(np.sqrt(np.sum(diff_matrix.values ** 2)))
+    
+    # Check if the norm is valid (not NaN or infinite)
+    if np.isnan(frobenius_norm) or np.isinf(frobenius_norm):
+        print("Warning: Invalid Frobenius norm detected. Setting to 0.")
+        frobenius_norm = 0.0
     
     # Create the heatmap
     plt.figure(figsize=(12, 10))
